@@ -1,0 +1,34 @@
+import { invoke } from '@tauri-apps/api/core';
+import type { CommandTrace, ModelProfile, ModelRunResult, SuggestionItem } from '../types';
+
+export function backendStatus() {
+  return invoke<string>('backend_status');
+}
+
+export function inspectProject() {
+  return invoke<Record<string, unknown>>('inspect_project');
+}
+
+export function complete(prefix: string) {
+  return invoke<SuggestionItem[]>('complete', { prefix });
+}
+
+export function executeShellCommand(command: string, allowMediumRisk = false) {
+  return invoke<CommandTrace>('execute_shell_command', { command, allowMediumRisk });
+}
+
+export function listModelProfiles() {
+  return invoke<ModelProfile[]>('list_model_profiles');
+}
+
+export function saveModelProfiles(profiles: ModelProfile[]) {
+  return invoke<ModelProfile[]>('save_model_profiles', { profiles });
+}
+
+export function createAiCard(profileId: string, intent: string) {
+  return invoke<ModelRunResult>('create_ai_card', { profileId, intent });
+}
+
+export function runLocalModel(profileId: string, prompt: string) {
+  return invoke<ModelRunResult>('run_local_model', { profileId, prompt });
+}
