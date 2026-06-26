@@ -1,0 +1,280 @@
+# AiSH Architecture
+
+AiSH has one shared local intelligence layer and two user-facing surfaces.
+
+```text
+Surfaces:
+  - standalone desktop app
+  - shell/provider integrations
+
+Shared local layer:
+  - context engine
+  - completion engine
+  - history store
+  - safety classifier
+  - AI command-card runtime
+```
+
+## High-Level System
+
+```text
+User input
+  -> surface adapter
+  -> mode router
+  -> context engine
+  -> candidate generator
+  -> ranker / AI runtime
+  -> safety classifier
+  -> suggestion renderer
+  -> user accepts
+  -> shell executes
+  -> event logger
+```
+
+## Surfaces
+
+### Desktop App
+
+The app owns the UI and the shell session.
+
+```text
+React/Tauri UI
+  -> Rust commands/events
+  -> PTY session
+  -> selected shell
+```
+
+Responsibilities:
+
+```text
+- render terminal
+- manage tabs/panes
+- capture input line
+- render suggestions
+- render AI cards
+- expose settings/context/cache UI
+- host local service if needed
+```
+
+### Provider Layer
+
+The provider layer runs inside or near existing shells.
+
+```text
+PowerShell/Zsh/Bash/Fish provider
+  -> AiSH local service/protocol
+  -> completion candidates
+  -> shell-native completion UI
+```
+
+Responsibilities:
+
+```text
+- collect shell context
+- request candidates
+- record accept/reject events
+- trigger AI Ask/Suggest explicitly
+- avoid replacing the shell UI
+```
+
+## Core Crates
+
+```text
+crates/aish-core
+  shared types, config, command cards, mode router
+
+crates/aish-pty
+  PTY sessions, shell process management, resize/input/output
+
+crates/aish-context
+  cwd/project/git/package/docker/python/cargo context detection
+
+crates/aish-history
+  SQLite command events, frequency/recency indexes
+
+crates/aish-completion
+  deterministic candidate generation, scoring hooks
+
+crates/aish-ai
+  local model runtime, runtime planner bridge, command-card parsing
+
+crates/aish-safety
+  risk classification, confirmation policy, destructive pattern rules
+
+crates/aish-provider
+  provider protocol shared by PowerShell/Bash/Zsh/Fish/cmd integrations
+```
+
+## Provider Protocol
+
+Provider requests should be small JSON packets.
+
+```json
+{
+  "request_type": "complete",
+  "surface": "powershell-provider",
+  "os": "windows",
+  "shell": "powershell",
+  "mode": "history",
+  "cwd": "C:/projects/app",
+  "prefix": "npm",
+  "context_level": "project",
+  "cache_policy": "use_project_cache"
+}
+```
+
+Response:
+
+```json
+{
+  "items": [
+    {
+      "kind": "command",
+      "command": "npm run dev",
+      "source": "package_scripts",
+      "score": 0.92,
+      "risk": "low",
+      "requires_confirmation": false
+    }
+  ]
+}
+```
+
+## Command Card
+
+AI and planners return command cards.
+
+```json
+{
+  "action_type": "command",
+  "os": "windows",
+  "shell": "powershell",
+  "command": "git status --short",
+  "risk": "low",
+  "category": "git",
+  "requires_admin": false,
+  "modifies_system": false,
+  "needs_confirmation": false,
+  "reason": "Shows concise Git working tree status."
+}
+```
+
+Plan cards:
+
+```json
+{
+  "action_type": "plan",
+  "os": "windows",
+  "shell": "powershell",
+  "command": "",
+  "risk": "medium",
+  "category": "programming_run",
+  "requires_admin": false,
+  "modifies_system": true,
+  "needs_confirmation": true,
+  "reason": "Installs dependencies, then starts the dev server.",
+  "steps": [
+    {
+      "index": 1,
+      "command": "npm install",
+      "risk": "medium",
+      "modifies_system": true,
+      "needs_confirmation": true,
+      "reason": "Installs missing dependencies."
+    },
+    {
+      "index": 2,
+      "command": "npm run dev",
+      "risk": "low",
+      "modifies_system": false,
+      "needs_confirmation": false,
+      "reason": "Starts the configured dev script."
+    }
+  ]
+}
+```
+
+Fallback cards:
+
+```json
+{
+  "action_type": "fallback_message",
+  "os": "windows",
+  "shell": "powershell",
+  "command": "",
+  "risk": "low",
+  "category": "not_a_shell_command",
+  "requires_admin": false,
+  "modifies_system": false,
+  "needs_confirmation": false,
+  "reason": "The request is not a terminal command.",
+  "fallback_message": "This looks like a writing request, not a shell workflow."
+}
+```
+
+## Context Engine
+
+Context engine outputs a normalized context packet.
+
+```text
+Detected:
+- OS and shell
+- cwd
+- project type
+- package manager
+- package scripts
+- git branch and dirty state
+- docker compose files
+- python project metadata
+- cargo project metadata
+- recent commands
+- recent terminal output when allowed
+```
+
+## Cache Strategy
+
+```text
+Project cache:
+  package scripts, git branches, project type
+
+History cache:
+  frequency, recency, accepted/rejected suggestions
+
+AI cache:
+  optional exact-context prompt response cache
+```
+
+All cache is local and clearable.
+
+## Safety Layer
+
+Safety runs after every candidate source.
+
+```text
+candidate generated by history -> safety
+candidate generated by rules   -> safety
+candidate generated by AI      -> safety
+```
+
+No candidate bypasses safety.
+
+## Runtime Strategy
+
+MVP:
+
+```text
+- deterministic candidates
+- no required model
+```
+
+Next:
+
+```text
+- local ranker for candidate ordering
+```
+
+Later:
+
+```text
+- Ken/GGUF command-card generator for explicit AI mode
+```
