@@ -1,22 +1,27 @@
-# AiSH Model Training Plan
+# AiSH Model Plan
 
-This document defines the model strategy for AiSH, the standalone intelligent terminal app.
+AiSH should not depend on a generative model for the first usable build.
 
-The goal is not to train a large chatbot-style model first. The correct first model is a small on-device command ranker that improves local shell completion.
-
-## Model Strategy
-
-AiSH should use a staged model approach.
+The product has two runtime surfaces:
 
 ```text
-v1: no model required
-v2: tiny local command ranker
-v3: optional command generator
+1. standalone desktop app
+2. shell/provider layer
 ```
 
-## v1: Rule-Based Completion Engine
+Both surfaces should work with deterministic completion first. Local AI is an optional layer for explicit AI Mode.
 
-Before training any model, AiSH should implement deterministic completions.
+## Staged Model Strategy
+
+```text
+v1: deterministic completion engine, no model required
+v2: tiny local command ranker, preferably ONNX
+v3: optional local command-card generator, Ken/GGUF or equivalent
+```
+
+## v1: Deterministic Completion Engine
+
+This is the first shippable intelligence layer.
 
 Sources:
 
@@ -26,42 +31,25 @@ Sources:
 - current working directory
 - package.json scripts
 - Makefile targets
-- Docker Compose services
+- Docker Compose files
 - Git branches
 - Cargo.toml
 - pyproject.toml
-- Gradle tasks
-- common shell commands
+- requirements.txt
+- common safe shell commands
 ```
 
-Example:
-
-```json
-{
-  "prefix": "npm",
-  "cwd": "/projects/app",
-  "detected_files": ["package.json", "vite.config.ts"],
-  "candidates": [
-    "npm run dev",
-    "npm run build",
-    "npm test"
-  ]
-}
-```
-
-This version should be fast enough to run on every keystroke.
-
-Target latency:
+Latency targets:
 
 ```text
-History/project suggestions: < 30 ms
-Dropdown suggestions:        < 50 ms
-AI-generated suggestions:    manual trigger only
+history/project suggestions: < 30 ms
+suggestion dropdown:         < 50 ms
+AI generation:               manual trigger only
 ```
 
-## v2: Tiny Command Ranker
+## v2: Tiny Local Ranker
 
-The first trainable model should rank candidate commands, not generate them from scratch.
+The first trainable model should rank candidates, not generate commands from scratch.
 
 Input:
 
@@ -70,6 +58,8 @@ Input:
   "shell": "powershell",
   "os": "windows",
   "prefix": "npm",
+  "mode": "history",
+  "context_level": "project",
   "cwd_type": "node_vite_project",
   "recent_commands": ["npm install", "npm run dev"],
   "candidates": [
@@ -92,99 +82,7 @@ Output:
 ]
 ```
 
-## Training Data
-
-Training examples can come from:
-
-```text
-1. Local shell history
-2. Accepted AiSH suggestions
-3. Rejected AiSH suggestions
-4. Successful commands
-5. Failed commands
-6. Public command examples
-7. CLI documentation examples
-8. Synthetic command/context pairs
-```
-
-Local personalization should stay on-device.
-
-## Training Sample Format
-
-```json
-{
-  "context": {
-    "shell": "bash",
-    "os": "linux",
-    "prefix": "git che",
-    "cwd_type": "git_repo",
-    "git_branch": "main",
-    "recent_commands": [
-      "git status",
-      "git branch",
-      "git checkout feature-login"
-    ]
-  },
-  "positive": "git checkout feature-login",
-  "negatives": [
-    "git checkout main",
-    "git cherry-pick",
-    "git checkout -- ."
-  ]
-}
-```
-
-## Feature Inputs
-
-The model should receive compact features, not raw huge prompts.
-
-Useful features:
-
-```text
-- typed prefix
-- shell name
-- OS
-- current directory name
-- project type
-- detected files
-- recent commands
-- command frequency
-- command recency
-- last exit code
-- Git branch
-- package manager
-- available scripts/tasks
-```
-
-## Model Type
-
-Recommended options:
-
-```text
-Option A: Lightweight neural ranker
-- small Transformer encoder or MLP over engineered features
-- exported to ONNX
-- fast inference
-
-Option B: Gradient boosting / linear ranker
-- simpler and very fast
-- easier to train from limited data
-- less flexible than neural ranking
-
-Option C: Tiny command language model
-- only for v3
-- should not be the default model
-```
-
-Recommended first choice:
-
-```text
-Rule-based candidate generator + tiny ONNX ranker
-```
-
-## Model Runtime
-
-Primary runtime:
+Recommended runtime:
 
 ```text
 ONNX Runtime
@@ -193,40 +91,81 @@ ONNX Runtime
 Reasons:
 
 ```text
-- works across Windows, macOS, and Linux
-- good for small local models
-- easier to call from Rust/C++/C#/Python ecosystems
-- suitable for a fast command ranker
+- very fast
+- cross-platform
+- easy to call from Rust
+- suitable for ranking
+- smaller than a generative model
 ```
 
-Optional future runtime:
+## v3: Optional Command-Card Generator
+
+Ken belongs here.
+
+Use Ken or another small local generator for explicit AI Mode only.
+
+Use cases:
 
 ```text
-GGUF / llama.cpp
+- AI Suggest: natural language to command card
+- AI Ask: command explanation/debugging/alternatives
+- fallback classification for non-terminal requests
 ```
 
-Use this only if AiSH later adds a small local command generator.
-
-## Training Pipeline
+The generator returns structured cards:
 
 ```text
-1. Collect local command events
-2. Normalize shell-specific syntax
-3. Detect project context
-4. Generate candidate commands
-5. Mark accepted commands as positives
-6. Sample rejected or unused candidates as negatives
-7. Train ranker
-8. Export to ONNX
-9. Quantize if needed
-10. Evaluate latency and ranking quality
-11. Ship model with AiSH
-12. Continue local personalization on-device
+- command
+- plan
+- fallback_message
 ```
+
+It must not directly execute commands. Every generated card goes through deterministic schema validation and safety classification.
+
+## Ken Integration Boundary
+
+Ken should not own the whole product.
+
+Ken can do:
+
+```text
+- generate command cards
+- classify fallback vs terminal workflow
+- explain command intent
+- suggest command alternatives
+```
+
+Ken should not do:
+
+```text
+- run on every keystroke by default
+- bypass deterministic completions
+- bypass safety
+- decide destructive execution without confirmation
+- replace project-specific deterministic rules
+```
+
+## Training Data Sources
+
+Training examples can come from:
+
+```text
+1. local shell history
+2. accepted AiSH suggestions
+3. rejected AiSH suggestions
+4. successful commands
+5. failed commands
+6. public command examples
+7. CLI documentation examples
+8. synthetic command/context pairs
+9. hardcase eval failures
+```
+
+Local personalization should stay on-device.
 
 ## Event Logging Schema
 
-AiSH should store local events in SQLite.
+AiSH stores local command events in SQLite.
 
 ```sql
 CREATE TABLE command_events (
@@ -245,13 +184,33 @@ CREATE TABLE command_events (
 );
 ```
 
-Suggested values for `source`:
+Suggested `source` values:
 
 ```text
 manual
 history_suggestion
 project_completion
 ai_generated
+provider_completion
+```
+
+## Feature Inputs For Ranker
+
+```text
+- typed prefix
+- shell name
+- OS
+- current directory type
+- project type
+- detected files
+- recent commands
+- command frequency
+- command recency
+- last exit code
+- Git branch
+- package manager
+- available scripts/tasks
+- suggestion source
 ```
 
 ## Evaluation Metrics
@@ -267,21 +226,24 @@ Track:
 - dangerous suggestion rate
 - per-shell quality
 - per-project-type quality
+- fallback accuracy for AI mode
+- command-card schema pass rate for AI mode
 ```
 
 Targets:
 
 ```text
-Top-1 accuracy:              60%+ for repeated workflows
-Top-3 accuracy:              80%+ for repeated workflows
-History suggestion latency:  < 30 ms
-Ranker inference latency:    < 10 ms
-Dangerous silent suggestions: 0
+top-1 accuracy for repeated workflows: 60%+
+top-3 accuracy for repeated workflows: 80%+
+history suggestion latency:            < 30 ms
+ranker inference latency:              < 10 ms
+dangerous silent suggestions:          0
+AI raw schema pass rate:               90%+ before shipping AI mode
 ```
 
-## Safety Classifier
+## Safety Layer
 
-AiSH needs a deterministic safety layer before any suggestion is shown or accepted.
+Safety is deterministic and separate from all models.
 
 High-risk command patterns:
 
@@ -294,6 +256,7 @@ git reset --hard
 docker system prune
 kubectl delete
 npm publish
+terraform apply
 chmod -R 777
 drop database
 format
@@ -306,47 +269,19 @@ Policy:
 - require confirmation for destructive commands
 - show explanation before execution
 - prefer safer alternatives where possible
+- apply safety to history, project, provider, and AI candidates
 ```
-
-## v3: Optional Command Generator
-
-Once the ranker works well, AiSH can add a small command-generation model.
-
-Use cases:
-
-```text
-- user types natural language
-- user asks how to do a shell task
-- user requests a command explanation
-- user wants command alternatives
-```
-
-Example:
-
-```text
-User: find all large files over 500MB
-AiSH: find . -type f -size +500M
-```
-
-This should be manually triggered with a shortcut such as:
-
-```text
-Ctrl + Space
-```
-
-AI generation should not run on every keystroke.
 
 ## Final Recommendation
 
-Do not start by training a full LLM.
-
-Start with:
+Build in this order:
 
 ```text
 1. deterministic completion engine
 2. local command history scorer
-3. tiny ONNX ranker
-4. optional command generator later
+3. provider protocol and PowerShell provider
+4. tiny ONNX ranker
+5. optional Ken/GGUF command-card generator
 ```
 
-This gives AiSH the right balance of speed, privacy, safety, and usefulness.
+This keeps AiSH fast, useful, private, and safe while model quality improves separately.
