@@ -1,0 +1,22 @@
+# Node
+node_modules/
+dist/
+.vite/
+
+# Rust
+/target/
+Cargo.lock
+
+# Tauri
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local runtime
+.aish/
+models/*.gguf
