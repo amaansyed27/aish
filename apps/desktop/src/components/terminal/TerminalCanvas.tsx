@@ -2,16 +2,17 @@ import type { ModelRunResult } from '../../lib/api';
 import { WelcomeMark } from './WelcomeMark';
 
 interface TerminalCanvasProps {
+  cwd: string;
   result: ModelRunResult | null;
   error: string;
 }
 
-export function TerminalCanvas({ result, error }: TerminalCanvasProps) {
+export function TerminalCanvas({ cwd, result, error }: TerminalCanvasProps) {
   const hasResult = Boolean(result || error);
 
   return (
     <section className="terminal-canvas">
-      {!hasResult && <WelcomeMark />}
+      {!hasResult && <WelcomeMark cwd={cwd} />}
 
       {error && (
         <article className="command-block error-block">
