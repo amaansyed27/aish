@@ -38,10 +38,13 @@ fn read_profiles(path: &Path) -> Result<Vec<ModelProfile>, String> {
 pub fn list_profiles() -> Result<Vec<ModelProfile>, String> {
     for path in candidate_paths() {
         if path.exists() {
-            return read_profiles(&path);
+            let profiles = read_profiles(&path)?;
+            if !profiles.is_empty() {
+                return Ok(profiles);
+            }
         }
     }
-    Ok(vec![ModelProfile::default()])
+    Ok(default_profiles())
 }
 
 pub fn save_profiles(profiles: Vec<ModelProfile>) -> Result<Vec<ModelProfile>, String> {
@@ -56,4 +59,31 @@ pub fn find_profile(id: &str) -> Result<ModelProfile, String> {
         .into_iter()
         .find(|profile| profile.id == id)
         .ok_or_else(|| format!("missing profile: {id}"))
+}
+
+fn default_profiles() -> Vec<ModelProfile> {
+    let home = std::env::var("USERPROFILE").unwrap_or_else(|_| "C:/Users/Amaan".to_string()).replace('\\', "/");
+    let models = format!("{home}/Downloads/aish-model/models");
+    let llama = format!("{home}/Downloads/llama.cpp/build/bin/Release/llama-cli.exe");
+
+    vec![
+        profile("ken-v01-f16", "Ken v0.1 F16", "kenwin", &format!("{models}/kenwin-v0.1-f16.gguf"), &llama),
+        profile("ken-v01-q4", "Ken v0.1 Q4_K_M", "kenwin", &format!("{models}/kenwin-v0.1-q4_k_m.gguf"), &llama),
+        profile("ken-v02-f16", "Ken v0.2 targeted F16", "kenwin", &format!("{models}/kenwin-v0.2-targeted-f16.gguf"), &llama),
+        profile("ken-v02-q4", "Ken v0.2 targeted Q4_K_M", "kenwin", &format!("{models}/kenwin-v0.2-targeted-q4_k_m.gguf"), &llama),
+        profile("sairaj-qwen25-coder-q4", "Sairaj Qwen2.5 Coder 1.5B Q4_K_M", "baseline", &format!("{models}/qwen2.5-coder-1.5b-instruct.Q4_K_M.gguf"), &llama),
+    ]
+}
+
+fn profile(id: &str, label: &str, family: &str, model_path: &str, llama_cli_path: &str) -> ModelProfile {
+    ModelProfile {
+        id: id.to_string(),
+        label: label.to_string(),
+        family: family.to_string(),
+        model_path: model_path.to_string(),
+        llama_cli_path: llama_cli_path.to_string(),
+        context_tokens: 4096,
+        max_tokens: 384,
+        temperature: 0.1,
+    }
 }
