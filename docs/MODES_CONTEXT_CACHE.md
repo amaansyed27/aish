@@ -4,6 +4,7 @@ AiSH behavior is controlled by three related systems:
 
 ```text
 - mode
+- AI submode
 - context level
 - cache policy
 ```
@@ -34,46 +35,75 @@ History ranking: on
 Context collection: project metadata only as needed
 ```
 
+History Mode can use command history and deterministic project completions. It should not call Ken or any generative model.
+
 ### AI
 
 AI-assisted mode.
 
 ```text
-Suggestions: AI Suggest or AI Ask
-History ranking: available as context
+Suggestions: AI Suggest or AI Run
+History ranking: available as compact context when enabled
 Context collection: governed by context level
-Model calls: explicit or user-enabled inline suggest
+Model calls: explicit or user-enabled inline suggest/run only
 ```
+
+AI Mode is still bounded by validation and safety. The model never directly executes anything.
 
 ## AI Submodes
 
 ### AI Suggest
 
-Inline command generation. Designed for short intent-to-command flows.
+Generate command/plan/script/fallback and show it before running.
 
 ```text
 - user types natural language or prefix
 - AiSH builds a context packet
-- AI/runtime planner returns command card
-- safety classifier checks it
+- AiSH retrieves CLI docs/tool context if needed
+- Ken/runtime planner returns a card
+- validator checks structure
+- safety classifier checks risk
 - suggestion appears as ghost text/dropdown/card
+- user accepts, copies, edits, or dismisses
 ```
+
+### AI Run
+
+Generate, validate, risk-check, and run only low-risk cards.
+
+```text
+- user types natural-language request
+- AiSH inspects context
+- Ken/runtime planner returns a card
+- AiSH validates the card
+- AiSH checks risk
+- low-risk commands may run directly
+- medium/high-risk commands require confirmation
+- result is shown first
+- Working / Command Trace can be expanded
+```
+
+AI Run must not show hidden model reasoning. The trace shows execution details only.
 
 ### AI Ask
 
-Side panel or command palette flow.
+AI Ask can exist as a side panel or command palette helper, but it is not the primary execution submode.
+
+Use cases:
 
 ```text
 - explain command
 - debug error
 - suggest alternatives
 - summarize project
-- generate a command with reasoning
+- generate a command with explanation
 ```
 
 AI Ask can use more context than AI Suggest, but should still show what context is included.
 
 ## Context Levels
+
+By default, AI prompts are single-shot. AiSH should not automatically include old conversation context in every request.
 
 ### Off
 
@@ -88,6 +118,7 @@ Excluded:
 - package files
 - git state
 - terminal output
+- recent commands
 ```
 
 ### Minimal
@@ -110,6 +141,8 @@ Included:
 - docker compose presence
 - pyproject/requirements metadata
 - Cargo.toml metadata
+- cloud/deploy metadata
+- installed CLI availability
 ```
 
 ### Terminal
@@ -118,7 +151,29 @@ Included:
 Included:
 - recent commands
 - last exit code
-- recent terminal output window
+- compact summaries of recent terminal output
+```
+
+Terminal context should use compact summaries, not full raw logs.
+
+Optional setting:
+
+```text
+include summaries of last 5 commands
+```
+
+Example:
+
+```json
+{
+  "recent_commands": [
+    {
+      "command": "npm run dev",
+      "exit_code": 1,
+      "summary": "Failed because port 5173 is already in use"
+    }
+  ]
+}
 ```
 
 ### Selected
@@ -140,6 +195,14 @@ No reusable cache except required runtime state.
 
 Cache project detection and scripts.
 
+```text
+- project type
+- package scripts
+- package manager
+- git branches
+- CLI availability
+```
+
 ### Full Local
 
 Cache:
@@ -148,6 +211,8 @@ Cache:
 - project metadata
 - history index
 - accepted/rejected suggestions
+- local docs slices
+- safe help command output
 - AI response cache
 - model metadata
 ```
@@ -159,7 +224,10 @@ Set mode:
   Normal | History | AI
 
 Set AI submode:
-  Suggest | Ask
+  Suggest | Run
+
+Open AI Ask:
+  explicit side panel / command palette action
 
 Set context:
   Off | Minimal | Project | Terminal | Selected
@@ -174,9 +242,20 @@ Recommended defaults:
 
 ```text
 mode: History
-AI submode: Ask only until user enables Suggest
+AI submode: Suggest until user enables Run
 context: Project
 cache: Project Only
 history learning: On
 AI response cache: Off
+include last 5 command summaries: Off
+```
+
+AI Run defaults:
+
+```text
+auto-run low-risk only
+confirm medium/high-risk
+never run fallback
+never run invalid cards
+never bypass safety
 ```
