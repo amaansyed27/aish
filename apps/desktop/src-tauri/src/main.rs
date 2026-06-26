@@ -16,7 +16,8 @@ fn main() {
             commands::list_model_profiles,
             commands::save_model_profiles,
             commands::run_local_model,
-            commands::create_ai_card
+            commands::create_ai_card,
+            terminal::terminal_open
         ])
         .run(tauri::generate_context!())
         .expect("failed to run AiSH desktop app");
