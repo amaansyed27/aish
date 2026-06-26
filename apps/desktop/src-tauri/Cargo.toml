@@ -18,3 +18,5 @@ aish-context = { path = "../../../crates/aish-context" }
 aish-completion = { path = "../../../crates/aish-completion" }
 aish-provider = { path = "../../../crates/aish-provider" }
 aish-safety = { path = "../../../crates/aish-safety" }
+aish-ai = { path = "../../../crates/aish-ai" }
+aish-pty = { path = "../../../crates/aish-pty" }
