@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
-import { FitAddon } from '@xterm/addon-fit';
-import { invoke } from '@tauri-apps/api/core';
+import { useEffect, useMemo, useState } from 'react';
 import type { AiSubmode, AppState, CachePolicy, CommandTrace, ContextLevel, Mode, SuggestionItem } from './types';
+import { backendStatus, complete, createAiCard, executeShellCommand, inspectProject, listModelProfiles, saveModelProfiles, type ModelProfile, type ModelRunResult } from './lib/api';
+import { TerminalSurface } from './components/TerminalSurface';
+import { SegmentButton } from './components/SegmentButton';
+import { TracePanel } from './components/TracePanel';
+import { ModelPanel } from './components/ModelPanel';
 
 const initialState: AppState = {
   mode: 'history',
@@ -13,95 +15,72 @@ const initialState: AppState = {
   cwd: '~',
 };
 
-const demoSuggestions: SuggestionItem[] = [
-  { command: 'npm run dev', label: 'Start dev server', source: 'package scripts', risk: 'low', score: 0.92 },
-  { command: 'git status --short', label: 'Show changed files', source: 'git', risk: 'low', score: 0.84 },
-  { command: 'docker compose ps', label: 'List compose services', source: 'docker compose', risk: 'low', score: 0.75 },
-];
-
-const demoTrace: CommandTrace = {
-  intent: 'run the current app',
-  cardType: 'plan',
-  risk: 'medium',
-  contextUsed: ['cwd', 'package.json', 'pnpm-lock.yaml', 'scripts'],
-  commands: ['pnpm install', 'pnpm run dev'],
-  exitCode: undefined,
-  durationMs: undefined,
-  safetyDecision: 'install requires confirmation; run step is low risk',
-};
-
 function modeLabel(mode: Mode, aiSubmode: AiSubmode) {
   if (mode === 'ai') return `AI: ${aiSubmode === 'run' ? 'Run' : 'Suggest'}`;
   return mode === 'history' ? 'History' : 'Normal';
 }
 
-function SegmentButton<T extends string>({ value, active, onClick, children }: { value: T; active: T; onClick: (value: T) => void; children: React.ReactNode }) {
-  return (
-    <button className={value === active ? 'seg active' : 'seg'} onClick={() => onClick(value)}>
-      {children}
-    </button>
-  );
-}
-
-function XtermSurface() {
-  const hostRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!hostRef.current) return;
-
-    const terminal = new Terminal({
-      cursorBlink: true,
-      fontFamily: 'Cascadia Mono, CaskaydiaCove Nerd Font, Consolas, monospace',
-      fontSize: 13,
-      theme: {
-        background: '#080b10',
-        foreground: '#d5d7de',
-        cursor: '#d5d7de',
-        selectionBackground: '#263041',
-      },
-      convertEol: true,
-    });
-    const fit = new FitAddon();
-    terminal.loadAddon(fit);
-    terminal.open(hostRef.current);
-    fit.fit();
-    terminal.writeln('AiSH desktop scaffold');
-    terminal.writeln('PowerShell PTY bridge is the next implementation step.');
-    terminal.write('\r\nPS C:\\Users\\Amaan> ');
-
-    const resize = () => fit.fit();
-    window.addEventListener('resize', resize);
-
-    return () => {
-      window.removeEventListener('resize', resize);
-      terminal.dispose();
-    };
-  }, []);
-
-  return <div ref={hostRef} className="xterm-host" />;
-}
-
 export default function App() {
   const [state, setState] = useState<AppState>(initialState);
   const [input, setInput] = useState('');
-  const [traceOpen, setTraceOpen] = useState(false);
-  const [backendStatus, setBackendStatus] = useState('backend not checked');
+  const [backend, setBackend] = useState('backend not checked');
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
+  const [trace, setTrace] = useState<CommandTrace | null>(null);
+  const [project, setProject] = useState<Record<string, unknown>>({});
+  const [profiles, setProfiles] = useState<ModelProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState('');
+  const [modelOutput, setModelOutput] = useState<ModelRunResult | null>(null);
 
   const visibleSuggestions = useMemo(() => {
     if (state.mode === 'normal') return [];
-    return demoSuggestions.filter((item) => item.command.startsWith(input.trim()) || input.trim().length < 2);
-  }, [input, state.mode]);
+    return suggestions.slice(0, 6);
+  }, [suggestions, state.mode]);
 
   useEffect(() => {
-    invoke<string>('backend_status')
-      .then(setBackendStatus)
-      .catch(() => setBackendStatus('frontend-only preview'));
+    backendStatus().then(setBackend).catch(() => setBackend('frontend preview'));
+    inspectProject().then(setProject).catch(() => setProject({}));
+    listModelProfiles()
+      .then((items) => {
+        setProfiles(items);
+        setSelectedProfileId(String(items[0]?.id ?? ''));
+      })
+      .catch(() => setProfiles([]));
   }, []);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      complete(input).then(setSuggestions).catch(() => setSuggestions([]));
+    }, 120);
+    return () => window.clearTimeout(handle);
+  }, [input]);
 
   const setMode = (mode: Mode) => setState((prev) => ({ ...prev, mode }));
   const setAiSubmode = (aiSubmode: AiSubmode) => setState((prev) => ({ ...prev, aiSubmode, mode: 'ai' }));
   const setContextLevel = (contextLevel: ContextLevel) => setState((prev) => ({ ...prev, contextLevel }));
   const setCachePolicy = (cachePolicy: CachePolicy) => setState((prev) => ({ ...prev, cachePolicy }));
+
+  async function submitInput() {
+    const text = input.trim();
+    if (!text) return;
+
+    if (state.mode === 'ai') {
+      if (!selectedProfileId) {
+        setTrace({ intent: text, cardType: 'fallback', risk: 'low', contextUsed: ['model profile'], commands: [], safetyDecision: 'No model profile selected.' });
+        return;
+      }
+      const result = await createAiCard(selectedProfileId, text);
+      setModelOutput(result);
+      return;
+    }
+
+    const result = await executeShellCommand(text, false);
+    setTrace(result);
+  }
+
+  async function persistProfiles(next: ModelProfile[]) {
+    const saved = await saveModelProfiles(next);
+    setProfiles(saved);
+  }
 
   return (
     <main className="app-shell">
@@ -121,7 +100,7 @@ export default function App() {
             <SegmentButton value="ai" active={state.mode} onClick={setMode}>AI</SegmentButton>
           </div>
           <div className="status-pill">{modeLabel(state.mode, state.aiSubmode)}</div>
-          <div className="status-pill muted">{backendStatus}</div>
+          <div className="status-pill muted">{backend}</div>
         </div>
       </header>
 
@@ -154,51 +133,36 @@ export default function App() {
               <option value="full_local">Full local</option>
             </select>
           </div>
+
+          <ModelPanel profiles={profiles} selectedProfileId={selectedProfileId} onSelect={setSelectedProfileId} onSave={persistProfiles} />
         </aside>
 
         <section className="terminal-frame">
           <div className="terminal-header">
-            <div>
-              <span className="dot" />
-              PowerShell session
-            </div>
+            <div><span className="dot" />PowerShell session</div>
             <span className="hint">Warp-style blocks · PowerShell-first</span>
           </div>
 
           <div className="terminal-block">
-            <XtermSurface />
+            <TerminalSurface trace={trace} modelOutput={modelOutput} />
           </div>
 
           <div className="suggestion-strip">
             {visibleSuggestions.map((suggestion) => (
               <button key={suggestion.command} className="suggestion" onClick={() => setInput(suggestion.command)}>
                 <strong>{suggestion.command}</strong>
-                <span>{suggestion.label} · {suggestion.source} · {suggestion.risk}</span>
+                <span>{suggestion.description ?? suggestion.label} · {suggestion.source} · {suggestion.risk}</span>
               </button>
             ))}
           </div>
 
           <label className="input-row">
             <span>PS</span>
-            <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Type a command or AI request…" />
-            <button>{state.mode === 'ai' && state.aiSubmode === 'run' ? 'Run' : 'Suggest'}</button>
+            <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Type a command or AI request…" onKeyDown={(event) => { if (event.key === 'Enter') void submitInput(); }} />
+            <button type="button" onClick={() => void submitInput()}>{state.mode === 'ai' && state.aiSubmode === 'run' ? 'Run' : 'Suggest'}</button>
           </label>
 
-          <section className="trace-card">
-            <button className="trace-toggle" onClick={() => setTraceOpen((open) => !open)}>
-              <span>Working</span>
-              <small>Command Trace · {demoTrace.risk}</small>
-            </button>
-            {traceOpen && (
-              <div className="trace-body">
-                <p><b>Intent:</b> {demoTrace.intent}</p>
-                <p><b>Card:</b> {demoTrace.cardType}</p>
-                <p><b>Context:</b> {demoTrace.contextUsed.join(', ')}</p>
-                <p><b>Safety:</b> {demoTrace.safetyDecision}</p>
-                <pre>{demoTrace.commands.join('\n')}</pre>
-              </div>
-            )}
-          </section>
+          <TracePanel trace={trace} modelOutput={modelOutput} project={project} />
         </section>
       </section>
     </main>
