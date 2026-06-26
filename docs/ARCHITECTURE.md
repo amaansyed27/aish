@@ -8,7 +8,8 @@ Surfaces:
   - shell/provider integrations
 
 Shared local layer:
-  - context engine
+  - context/project inspection engine
+  - CLI knowledge layer
   - completion engine
   - history store
   - safety classifier
@@ -21,14 +22,15 @@ Shared local layer:
 User input
   -> surface adapter
   -> mode router
-  -> context engine
-  -> candidate generator
-  -> ranker / AI runtime
+  -> project/context inspection
+  -> CLI knowledge retrieval when needed
+  -> candidate generator / Ken runtime planner
+  -> card validator
   -> safety classifier
-  -> suggestion renderer
-  -> user accepts
+  -> suggestion/result renderer
+  -> user accepts OR AI Run low-risk auto-run
   -> shell executes
-  -> event logger
+  -> command trace + event logger
 ```
 
 ## Surfaces
@@ -51,7 +53,9 @@ Responsibilities:
 - manage tabs/panes
 - capture input line
 - render suggestions
-- render AI cards
+- render cards
+- render AI Run result-first view
+- render Working / Command Trace details
 - expose settings/context/cache UI
 - host local service if needed
 ```
@@ -63,8 +67,8 @@ The provider layer runs inside or near existing shells.
 ```text
 PowerShell/Zsh/Bash/Fish provider
   -> AiSH local service/protocol
-  -> completion candidates
-  -> shell-native completion UI
+  -> completion candidates / AI requests
+  -> shell-native completion UI when possible
 ```
 
 Responsibilities:
@@ -73,7 +77,8 @@ Responsibilities:
 - collect shell context
 - request candidates
 - record accept/reject events
-- trigger AI Ask/Suggest explicitly
+- trigger AI Suggest/Run explicitly
+- expose mode/context/cache controls
 - avoid replacing the shell UI
 ```
 
@@ -81,7 +86,7 @@ Responsibilities:
 
 ```text
 crates/aish-core
-  shared types, config, command cards, mode router
+  shared types, config, cards, mode router
 
 crates/aish-pty
   PTY sessions, shell process management, resize/input/output
@@ -90,13 +95,16 @@ crates/aish-context
   cwd/project/git/package/docker/python/cargo context detection
 
 crates/aish-history
-  SQLite command events, frequency/recency indexes
+  SQLite command events, frequency/recency indexes, compact recent summaries
 
 crates/aish-completion
   deterministic candidate generation, scoring hooks
 
+crates/aish-cli-knowledge
+  CLI registry, local docs cache, safe live help fallback
+
 crates/aish-ai
-  local model runtime, runtime planner bridge, command-card parsing
+  Ken/runtime planner bridge, command-card parsing, AI Suggest/AI Run orchestration
 
 crates/aish-safety
   risk classification, confirmation policy, destructive pattern rules
@@ -140,9 +148,28 @@ Response:
 }
 ```
 
-## Command Card
+## AI Run Request
 
-AI and planners return command cards.
+```json
+{
+  "request_type": "ai_run",
+  "surface": "desktop",
+  "os": "windows",
+  "shell": "powershell",
+  "intent": "find the process using port 3000",
+  "cwd": "C:/projects/app",
+  "context_level": "project",
+  "cache_policy": "project_only"
+}
+```
+
+AI Run can execute only after card validation and safety classification.
+
+## Cards
+
+AI and planners return structured cards.
+
+### Command Card
 
 ```json
 {
@@ -159,7 +186,7 @@ AI and planners return command cards.
 }
 ```
 
-Plan cards:
+### Plan Card
 
 ```json
 {
@@ -194,7 +221,29 @@ Plan cards:
 }
 ```
 
-Fallback cards:
+### Script Card
+
+Script cards are for longer generated scripts, such as read-only PowerShell scans or cleanup workflows.
+
+```json
+{
+  "action_type": "script",
+  "os": "windows",
+  "shell": "powershell",
+  "script": "Get-ChildItem -Directory $env:USERPROFILE | ForEach-Object { ... }",
+  "risk": "low",
+  "category": "filesystem",
+  "requires_admin": false,
+  "modifies_system": false,
+  "needs_confirmation": false,
+  "reason": "Calculates folder sizes under the user profile.",
+  "display_name": "Top folders by size"
+}
+```
+
+Long scripts require stricter validation. Mutating scripts usually require confirmation.
+
+### Fallback Message
 
 ```json
 {
@@ -212,7 +261,7 @@ Fallback cards:
 }
 ```
 
-## Context Engine
+## Project / Context Engine
 
 Context engine outputs a normalized context packet.
 
@@ -225,20 +274,58 @@ Detected:
 - package scripts
 - git branch and dirty state
 - docker compose files
-- python project metadata
-- cargo project metadata
-- recent commands
-- recent terminal output when allowed
+- Python project metadata
+- Rust/Cargo metadata
+- cloud/deploy metadata
+- installed CLI availability
+- recent command summaries when enabled
 ```
+
+Default AI requests are single-shot. Previous conversation context is not automatically included.
+
+## CLI Knowledge Layer
+
+The CLI knowledge layer provides compact tool context.
+
+```text
+Sources:
+- built-in CLI registry
+- local docs cache
+- safe live help fallback
+```
+
+It covers common tools first: npm, pnpm, yarn, bun, git, docker, docker compose, kubectl, terraform, AWS, gcloud, az, vercel, firebase, supabase, netlify, wrangler, flutter, cargo, dotnet, go, Java/Maven/Gradle, Python/pip/uv.
+
+## Command Trace
+
+AI Run stores an execution trace.
+
+```text
+- detected intent
+- context used
+- card type
+- commands/scripts run
+- plan steps
+- exit code
+- duration
+- logs
+- command output
+- safety decision
+```
+
+The UI may label this compactly as `Working`, with expanded title `Command Trace`.
 
 ## Cache Strategy
 
 ```text
 Project cache:
-  package scripts, git branches, project type
+  package scripts, git branches, project type, CLI availability
 
 History cache:
-  frequency, recency, accepted/rejected suggestions
+  frequency, recency, accepted/rejected suggestions, compact summaries
+
+Docs cache:
+  known CLI docs slices and help outputs
 
 AI cache:
   optional exact-context prompt response cache
@@ -254,9 +341,12 @@ Safety runs after every candidate source.
 candidate generated by history -> safety
 candidate generated by rules   -> safety
 candidate generated by AI      -> safety
+candidate generated by provider -> safety
 ```
 
 No candidate bypasses safety.
+
+AI Run may auto-run only validated low-risk cards. Medium/high-risk cards require confirmation.
 
 ## Runtime Strategy
 
@@ -264,6 +354,7 @@ MVP:
 
 ```text
 - deterministic candidates
+- project inspection
 - no required model
 ```
 
@@ -276,5 +367,5 @@ Next:
 Later:
 
 ```text
-- Ken/GGUF command-card generator for explicit AI mode
+- Ken/GGUF command-card generator for explicit AI Mode
 ```
