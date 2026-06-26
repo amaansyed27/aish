@@ -1,0 +1,32 @@
+[
+  {
+    "id": "ken-f16",
+    "label": "Ken F16",
+    "family": "kenwin",
+    "model_path": "PATH_TO_KEN_F16_GGUF",
+    "llama_cli_path": "PATH_TO_LLAMA_CLI",
+    "context_tokens": 4096,
+    "max_tokens": 384,
+    "temperature": 0.1
+  },
+  {
+    "id": "ken-q4",
+    "label": "Ken Q4",
+    "family": "kenwin",
+    "model_path": "PATH_TO_KEN_Q4_GGUF",
+    "llama_cli_path": "PATH_TO_LLAMA_CLI",
+    "context_tokens": 4096,
+    "max_tokens": 384,
+    "temperature": 0.1
+  },
+  {
+    "id": "baseline-q4",
+    "label": "Baseline Q4",
+    "family": "baseline",
+    "model_path": "PATH_TO_BASELINE_GGUF",
+    "llama_cli_path": "PATH_TO_LLAMA_CLI",
+    "context_tokens": 4096,
+    "max_tokens": 384,
+    "temperature": 0.1
+  }
+]
