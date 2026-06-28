@@ -35,19 +35,20 @@ export function AppChrome({ backendStatus, cwd, tabs, activeTabId, profiles, sel
               {tabs.length > 1 && <b className="tab-close" onClick={(event) => { event.stopPropagation(); onCloseTab(tab.id); }}>×</b>}
             </button>
           ))}
-          <button className="tab add-tab" type="button" title="New tab" onClick={onNewTab}>+</button>
+          <button className="new-tab-button" type="button" title="New tab" onClick={onNewTab}>+</button>
         </div>
       </div>
 
       <div className="chrome-right">
-        <span className="cwd-chip">{shortPath(cwd)}</span>
+        <span className="mode-chip">AI Run</span>
+        <span className="cwd-chip" title={cwd}>{shortPath(cwd)}</span>
         <select className="model-chip" value={selectedProfileId} onChange={(event) => onSelectProfile(event.target.value)}>
           {profiles.map((profile) => (
             <option key={String(profile.id)} value={String(profile.id)}>{String(profile.label ?? profile.id)}</option>
           ))}
         </select>
         <button className={settingsOpen ? 'icon-button active-icon' : 'icon-button'} type="button" title="Settings" onClick={onToggleSettings}>⚙</button>
-        <span className="chip muted">{backendStatus}</span>
+        <span className="status-dot" title={backendStatus}>{backendStatus === 'starting' ? 'starting' : 'ready'}</span>
       </div>
     </header>
   );
