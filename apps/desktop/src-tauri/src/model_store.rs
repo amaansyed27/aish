@@ -31,19 +31,28 @@ fn store_path() -> PathBuf {
 fn read_profiles(path: &Path) -> Result<Vec<ModelProfile>, String> {
     let text = fs::read_to_string(path)
         .map_err(|error| format!("Failed to read {}: {error}", path.display()))?;
+
+    if text.trim().is_empty() {
+        return Err(format!("{} is empty", path.display()));
+    }
+
     serde_json::from_str(&text)
         .map_err(|error| format!("Failed to parse {}: {error}", path.display()))
 }
 
 pub fn list_profiles() -> Result<Vec<ModelProfile>, String> {
+    let mut errors = Vec::new();
+
     for path in candidate_paths() {
         if path.exists() {
-            let profiles = read_profiles(&path)?;
-            if !profiles.is_empty() {
-                return Ok(profiles);
+            match read_profiles(&path) {
+                Ok(profiles) if !profiles.is_empty() => return Ok(profiles),
+                Ok(_) => errors.push(format!("{} contained no profiles", path.display())),
+                Err(error) => errors.push(error),
             }
         }
     }
+
     Ok(default_profiles())
 }
 
@@ -55,7 +64,8 @@ pub fn save_profiles(profiles: Vec<ModelProfile>) -> Result<Vec<ModelProfile>, S
 }
 
 pub fn find_profile(id: &str) -> Result<ModelProfile, String> {
-    list_profiles()?
+    let profiles = list_profiles()?;
+    profiles
         .into_iter()
         .find(|profile| profile.id == id)
         .ok_or_else(|| format!("missing profile: {id}"))
