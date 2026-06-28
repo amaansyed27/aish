@@ -5,17 +5,24 @@ export function useAiRun(selectedProfileId: string) {
   const [result, setResult] = useState<ModelRunResult | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState('');
+  const [lastIntent, setLastIntent] = useState('');
 
   async function runIntent(intent: string) {
     const trimmed = intent.trim();
-    if (!trimmed) return;
+    if (!trimmed || isRunning) return;
+
     if (!selectedProfileId) {
-      setError('No model profile selected.');
+      setLastIntent(trimmed);
+      setError('No model profile selected. Open Settings and choose a model.');
+      setResult(null);
       return;
     }
 
+    setLastIntent(trimmed);
     setIsRunning(true);
     setError('');
+    setResult(null);
+
     try {
       const next = await createAiCard(selectedProfileId, trimmed);
       setResult(next);
@@ -26,5 +33,11 @@ export function useAiRun(selectedProfileId: string) {
     }
   }
 
-  return { result, isRunning, error, runIntent };
+  function reset() {
+    setResult(null);
+    setError('');
+    setLastIntent('');
+  }
+
+  return { result, isRunning, error, lastIntent, runIntent, reset };
 }
