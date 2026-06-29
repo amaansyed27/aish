@@ -10,6 +10,19 @@ pub struct RiskDecision {
 
 pub fn classify_risk(command: &str) -> RiskDecision {
     let normalized = command.to_lowercase();
+
+    let long_search = normalized.contains("get-childitem")
+        && normalized.contains("-recurse")
+        && (normalized.contains("-path d:") || normalized.contains("-path d:\\") || normalized.contains("-path c:") || normalized.contains("-path c:\\"));
+
+    if long_search {
+        return RiskDecision {
+            risk: RiskLevel::Medium,
+            needs_confirmation: true,
+            reason: "Broad recursive drive searches can take a long time in the current prototype.".to_string(),
+        };
+    }
+
     let high_risk = [
         "rm -rf",
         "del /s /q",
