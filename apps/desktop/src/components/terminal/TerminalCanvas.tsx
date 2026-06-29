@@ -9,11 +9,16 @@ interface TerminalCanvasProps {
   busy: boolean;
 }
 
+function resultText(result: ModelRunResult | null) {
+  if (!result) return '';
+  const out = String(result.output ?? '').trim();
+  const err = String(result.error ?? '').trim();
+  return out || err || 'No response returned.';
+}
+
 export function TerminalCanvas(props: TerminalCanvasProps) {
   const hasContent = Boolean(props.result || props.error || props.busy);
-  const stdout = String(props.result?.output ?? '').trim();
-  const stderr = String(props.result?.error ?? '').trim();
-  const body = stdout || stderr || 'No response returned.';
+  const request = props.lastIntent ? `> ${props.lastIntent}` : '> ask AiSH';
 
   return (
     <section className="terminal-canvas" onContextMenu={(event) => event.preventDefault()}>
@@ -21,19 +26,19 @@ export function TerminalCanvas(props: TerminalCanvasProps) {
       {props.busy && (
         <article className="command-block">
           <div className="block-meta">AiSH</div>
-          <pre>{props.lastIntent ? `Request: ${props.lastIntent}` : 'Processing request...'}</pre>
+          <pre>{request}{'\n'}Thinking...</pre>
         </article>
       )}
       {props.error && (
         <article className="command-block error-block">
-          <div className="block-meta">Error</div>
-          <pre>{props.error}</pre>
+          <div className="block-meta">AiSH</div>
+          <pre>{request}{'\n'}{props.error}</pre>
         </article>
       )}
       {props.result && (
         <article className="command-block">
-          <div className="block-meta">Result</div>
-          <pre>{body}</pre>
+          <div className="block-meta">AiSH</div>
+          <pre>{request}{'\n'}{resultText(props.result)}</pre>
         </article>
       )}
     </section>
