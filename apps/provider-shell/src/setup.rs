@@ -7,10 +7,12 @@ use std::path::{Path, PathBuf};
 const DEFAULT_MODEL_URL: &str = "https://huggingface.co/bartowski/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-Coder-1.5B-Instruct-Q4_K_M.gguf?download=true";
 
 pub fn handle_setup_args() {
-    if !env::args().any(|arg| arg == "--setup") {
-        return;
+    if env::args().any(|arg| arg == "--setup") {
+        run_setup_wizard(true);
     }
+}
 
+pub fn run_setup_wizard(exit_after: bool) {
     let install_dir = prompt_with_default("Install location", default_install_dir().display().to_string());
     let install_dir = PathBuf::from(install_dir);
     let install_kind = prompt_with_default("Install type: 1 provider shell only, 2 desktop app + provider shell", "2".to_string());
@@ -18,7 +20,8 @@ pub fn handle_setup_args() {
 
     if let Err(error) = fs::create_dir_all(install_dir.join("bin")) {
         eprintln!("setup failed: could not create install directory: {error}");
-        std::process::exit(1);
+        if exit_after { std::process::exit(1); }
+        return;
     }
 
     match env::current_exe() {
@@ -40,7 +43,7 @@ pub fn handle_setup_args() {
         println!("provider shell only selected.");
     }
 
-    println!("trusted app note: OS trust requires code signing/notarization certificates. This setup prepares local install paths; signed release builds will remove most OS trust prompts.");
+    println!("trusted app note: OS trust requires release signing/notarization. This setup prepares local install paths only.");
 
     if download_model {
         let model_path = default_model_path();
@@ -51,7 +54,7 @@ pub fn handle_setup_args() {
     }
 
     println!("setup complete");
-    std::process::exit(0);
+    if exit_after { std::process::exit(0); }
 }
 
 pub fn ensure_model(profile: &ModelProfile) {
@@ -85,10 +88,7 @@ fn download_model_if_missing(path: &Path) -> Result<(), String> {
     println!("source: {url}");
 
     let response = ureq::get(&url).call().map_err(|error| error.to_string())?;
-    let total = response
-        .header("content-length")
-        .and_then(|value| value.parse::<u64>().ok())
-        .unwrap_or(0);
+    let total = response.header("content-length").and_then(|value| value.parse::<u64>().ok()).unwrap_or(0);
     let mut reader = response.into_reader();
     let mut file = File::create(path).map_err(|error| format!("failed to create {}: {error}", path.display()))?;
     let mut buf = [0u8; 1024 * 128];
@@ -96,9 +96,7 @@ fn download_model_if_missing(path: &Path) -> Result<(), String> {
 
     loop {
         let n = reader.read(&mut buf).map_err(|error| error.to_string())?;
-        if n == 0 {
-            break;
-        }
+        if n == 0 { break; }
         file.write_all(&buf[..n]).map_err(|error| error.to_string())?;
         written += n as u64;
         if total > 0 {
@@ -108,9 +106,7 @@ fn download_model_if_missing(path: &Path) -> Result<(), String> {
         }
     }
 
-    if total > 0 {
-        println!();
-    }
+    if total > 0 { println!(); }
     println!("model ready: {}", path.display());
     Ok(())
 }
@@ -119,9 +115,7 @@ fn prompt_with_default(label: &str, default_value: String) -> String {
     print!("{label} [{default_value}]: ");
     let _ = io::stdout().flush();
     let mut input = String::new();
-    if io::stdin().read_line(&mut input).is_err() {
-        return default_value;
-    }
+    if io::stdin().read_line(&mut input).is_err() { return default_value; }
     let trimmed = input.trim();
     if trimmed.is_empty() { default_value } else { trimmed.to_string() }
 }
@@ -131,9 +125,7 @@ fn prompt_yes_no(label: &str, default_yes: bool) -> bool {
     print!("{label} [{suffix}]: ");
     let _ = io::stdout().flush();
     let mut input = String::new();
-    if io::stdin().read_line(&mut input).is_err() {
-        return default_yes;
-    }
+    if io::stdin().read_line(&mut input).is_err() { return default_yes; }
     match input.trim().to_lowercase().as_str() {
         "y" | "yes" => true,
         "n" | "no" => false,
@@ -152,19 +144,10 @@ fn default_install_dir() -> PathBuf {
 }
 
 fn default_model_path() -> PathBuf {
-    if let Ok(path) = env::var("AISH_MODEL_PATH") {
-        return PathBuf::from(path);
-    }
-    home_dir()
-        .join("Downloads")
-        .join("aish-model")
-        .join("models")
-        .join("Qwen2.5-Coder-1.5B-Instruct-Q4_K_M.gguf")
+    if let Ok(path) = env::var("AISH_MODEL_PATH") { return PathBuf::from(path); }
+    home_dir().join("Downloads").join("aish-model").join("models").join("Qwen2.5-Coder-1.5B-Instruct-Q4_K_M.gguf")
 }
 
 fn home_dir() -> PathBuf {
-    env::var("USERPROFILE")
-        .or_else(|_| env::var("HOME"))
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("."))
+    env::var("USERPROFILE").or_else(|_| env::var("HOME")).map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("."))
 }
