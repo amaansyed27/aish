@@ -7,6 +7,9 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+const CREATOR: &str = "Dawnlight Labs";
+const COPYRIGHT: &str = "Copyright (c) 2026 Dawnlight Labs. All rights reserved.";
+
 #[derive(Debug, Clone, Deserialize)]
 struct CommandCard {
     action_type: String,
@@ -42,6 +45,7 @@ fn main() {
     setup::ensure_model(&state.profile);
 
     println!("AiSH provider shell");
+    println!("{COPYRIGHT}");
     println!("AI Run mode. Type natural language, direct commands, or /help.");
 
     loop {
@@ -79,6 +83,8 @@ fn handle_slash(input: &str, state: &mut ProviderState) -> bool {
         "/help" => print_help(),
         "/setup" => setup::run_setup_wizard(false),
         "/status" => {
+            println!("creator: {CREATOR}");
+            println!("copyright: {COPYRIGHT}");
             println!("os: {}", env::consts::OS);
             println!("shell: {}", shell_name());
             println!("model: {}", state.profile.label);
