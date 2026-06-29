@@ -10,7 +10,8 @@
     "windows": {
       "wix": {
         "language": "en-US",
-        "bannerPath": "installer/wix-banner.bmp"
+        "bannerPath": "installer/wix-banner.bmp",
+        "dialogImagePath": "installer/wix-dialog.bmp"
       }
     }
   }
