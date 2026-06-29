@@ -2,22 +2,14 @@ import { useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { openPty, sendPty } from '../../lib/api';
-import type { ModelRunResult } from '../../lib/api';
-
-const AISH_MARK = String.raw` █████╗ ██╗███████╗██╗  ██╗
-██╔══██╗██║██╔════╝██║  ██║
-███████║██║███████╗███████║
-██╔══██║██║╚════██║██╔══██║
-██║  ██║██║███████║██║  ██║
-╚═╝  ╚═╝╚═╝╚══════╝╚═╝  ╚═╝`;
+import { openPty, resizePty, sendPty } from '../../lib/api';
 
 interface TerminalOutputEvent {
   session_id: string;
   data: string;
 }
 
-export function TerminalSurface({ sessionId, modelOutput, error }: { sessionId: string; modelOutput: ModelRunResult | null; error: string }) {
+export function TerminalSurface({ sessionId }: { sessionId: string; modelOutput?: unknown; error?: string }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
 
@@ -29,25 +21,23 @@ export function TerminalSurface({ sessionId, modelOutput, error }: { sessionId: 
       convertEol: true,
       fontFamily: 'Cascadia Mono, CaskaydiaCove Nerd Font, Consolas, monospace',
       fontSize: 13,
+      lineHeight: 1.15,
+      scrollback: 10000,
       theme: {
-        background: '#03060a',
-        foreground: '#d7dce8',
-        cursor: '#d7dce8',
-        selectionBackground: '#243047',
+        background: '#0c0c0c',
+        foreground: '#d4d4d4',
+        cursor: '#d4d4d4',
+        selectionBackground: '#555555',
       },
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(hostRef.current);
     fit.fit();
+    terminal.focus();
     termRef.current = terminal;
 
-    terminal.writeln(AISH_MARK);
-    terminal.writeln('');
-
-    const cols = terminal.cols || 120;
-    const rows = terminal.rows || 30;
-    openPty(sessionId, cols, rows).catch((err) => terminal.writeln(String(err)));
+    openPty(sessionId, terminal.cols || 120, terminal.rows || 30).catch((err) => terminal.writeln(String(err)));
 
     const dataDisposable = terminal.onData((data) => {
       void sendPty(sessionId, data);
@@ -60,11 +50,17 @@ export function TerminalSurface({ sessionId, modelOutput, error }: { sessionId: 
       }
     }).then((fn) => { unlisten = fn; }).catch(() => undefined);
 
-    const resize = () => fit.fit();
+    const resize = () => {
+      fit.fit();
+      void resizePty(sessionId, terminal.cols || 120, terminal.rows || 30);
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(hostRef.current);
     window.addEventListener('resize', resize);
 
     return () => {
       window.removeEventListener('resize', resize);
+      observer.disconnect();
       if (unlisten) unlisten();
       dataDisposable.dispose();
       terminal.dispose();
@@ -72,21 +68,5 @@ export function TerminalSurface({ sessionId, modelOutput, error }: { sessionId: 
     };
   }, [sessionId]);
 
-  useEffect(() => {
-    if (!modelOutput || !termRef.current) return;
-    const output = String(modelOutput.output ?? '').trim();
-    const stderr = String(modelOutput.error ?? '').trim();
-    termRef.current.writeln('');
-    termRef.current.writeln('[AiSH model]');
-    if (output) termRef.current.writeln(output);
-    if (stderr) termRef.current.writeln(stderr);
-  }, [modelOutput]);
-
-  useEffect(() => {
-    if (!error || !termRef.current) return;
-    termRef.current.writeln('');
-    termRef.current.writeln(`[AiSH error] ${error}`);
-  }, [error]);
-
-  return <div className="xterm-host" ref={hostRef} onContextMenu={(event) => event.preventDefault()} />;
+  return <div className="xterm-host" ref={hostRef} onClick={() => termRef.current?.focus()} onContextMenu={(event) => event.preventDefault()} />;
 }
