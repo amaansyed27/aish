@@ -4,11 +4,13 @@
   "private": true,
   "description": "AiSH intelligent terminal app and shell/provider layer.",
   "workspaces": [
-    "apps/desktop"
+    "apps/desktop",
+    "apps/site"
   ],
   "scripts": {
-    "build": "node scripts/build-site.mjs",
-    "site:build": "node scripts/build-site.mjs",
+    "site:dev": "npm --workspace apps/site run dev",
+    "site:build": "npm --workspace apps/site run build",
+    "site:preview": "npm --workspace apps/site run preview",
     "desktop:dev": "npm --workspace apps/desktop run tauri dev",
     "desktop:build": "npm --workspace apps/desktop run tauri build",
     "desktop:check": "npm --workspace apps/desktop run typecheck",
