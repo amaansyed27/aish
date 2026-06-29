@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node build.mjs"
+    "dev": "node build.mjs && npx --yes serve dist --listen 5173",
+    "build": "node build.mjs",
+    "preview": "npx --yes serve dist --listen 4173"
   },
   "dependencies": {
     "react": "^19.0.0",
