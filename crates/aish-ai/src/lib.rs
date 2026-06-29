@@ -106,10 +106,12 @@ pub fn run_gguf_model(request: ModelRunRequest) -> Result<ModelRunResult, String
         .arg("-c")
         .arg(request.profile.context_tokens.to_string())
         .arg("--no-display-prompt")
-        .arg("--no-conversation");
+        .arg("--single-turn")
+        .arg("--reasoning")
+        .arg("off");
 
     let command_line = format!(
-        "{} -m {} -p <prompt> -n {} --temp {} -c {} --no-display-prompt --no-conversation",
+        "{} -m {} -p <prompt> -n {} --temp {} -c {} --no-display-prompt --single-turn --reasoning off",
         request.profile.llama_cli_path,
         request.profile.model_path,
         request.profile.max_tokens,
