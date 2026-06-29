@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useEffect, useState } from 'react';
 
 interface CommandComposerProps {
   value: string;
@@ -8,23 +8,32 @@ interface CommandComposerProps {
   onSubmit: () => void;
 }
 
-function shortPath(path: string) {
-  if (!path) return '~';
-  const normalized = path.replaceAll('\\', '/');
-  const parts = normalized.split('/').filter(Boolean);
-  return parts.slice(-2).join('/') || normalized;
-}
+const prompts = [
+  'Ask Ken to run a command...',
+  'Ask Ken to find a file...',
+  'Ask Ken to inspect this project...',
+  'Ask Ken to explain an error...',
+  'Ask Ken to search this folder...',
+];
 
-export const CommandComposer = forwardRef<HTMLInputElement, CommandComposerProps>(function CommandComposer({ value, cwd, disabled, onChange, onSubmit }, ref) {
+export const CommandComposer = forwardRef<HTMLInputElement, CommandComposerProps>(function CommandComposer({ value, disabled, onChange, onSubmit }, ref) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setIndex((current) => (current + 1) % prompts.length), 2600);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <form className="composer" onSubmit={(event) => { event.preventDefault(); onSubmit(); }}>
-      <span className="prompt">PS {shortPath(cwd)}&gt;</span>
+      <span className="ken-mark" aria-hidden="true">AiSH</span>
+      <span className="ken-label">Ask Ken</span>
       <input
         ref={ref}
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="Ask AiSH to run a command..."
+        placeholder={prompts[index]}
         autoFocus
         spellCheck={false}
         autoCapitalize="off"
