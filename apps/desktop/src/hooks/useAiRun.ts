@@ -11,6 +11,8 @@ export interface TerminalEntry {
   risk?: string;
   reason?: string;
   needsApproval?: boolean;
+  modelOutput?: string;
+  runtime?: string;
 }
 
 function cleanJson(text: string) {
@@ -77,6 +79,7 @@ export function useAiRun(profileId: string, options: { onLine?: (line: string) =
       const raw = await createAiCard(profileId, text);
       setResult(raw);
       const body = cleanJson(String(raw?.output ?? raw?.error ?? ''));
+      patch(id, { modelOutput: body, runtime: String(raw?.command_line ?? '') });
       let card: any = null;
       try { card = JSON.parse(body); } catch { card = null; }
       if (!card) { patch(id, { status: 'error', error: body || 'No valid card returned.' }); return; }
@@ -96,14 +99,7 @@ export function useAiRun(profileId: string, options: { onLine?: (line: string) =
       const risk = destructive ? (modelRisk === 'high' ? 'high' : 'medium') : (readOnly ? 'low' : modelRisk);
 
       if (destructive || (risk !== 'low' && !readOnly)) {
-        patch(id, {
-          status: 'approval',
-          command,
-          risk,
-          reason,
-          needsApproval: true,
-          output: 'Approval required. Expand Working to approve or cancel.',
-        });
+        patch(id, { status: 'approval', command, risk, reason, needsApproval: true, output: 'Approval required. Expand Working to approve or cancel.' });
         return;
       }
 
