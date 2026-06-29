@@ -7,7 +7,7 @@ repository.workspace = true
 
 [[bin]]
 name = "aish"
-path = "src/main.rs"
+path = "src/main_setup.rs"
 
 [dependencies]
 aish-ai = { path = "../../crates/aish-ai" }
