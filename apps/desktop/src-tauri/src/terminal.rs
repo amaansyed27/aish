@@ -29,9 +29,42 @@ pub fn terminal_open(
     session_id: String,
     cols: u16,
     rows: u16,
+    data: Option<String>,
+    action: Option<String>,
 ) -> Result<(), String> {
     let mut sessions = state.sessions.lock().map_err(|_| "terminal lock poisoned".to_string())?;
-    if sessions.contains_key(&session_id) {
+
+    if let Some(session) = sessions.get_mut(&session_id) {
+        if let Some(next_data) = data {
+            session
+                .writer
+                .write_all(next_data.as_bytes())
+                .map_err(|error| format!("failed to write to terminal: {error}"))?;
+            return session
+                .writer
+                .flush()
+                .map_err(|error| format!("failed to flush terminal writer: {error}"));
+        }
+
+        if action.as_deref() == Some("resize") {
+            return session
+                .master
+                .resize(PtySize {
+                    rows: rows.max(10),
+                    cols: cols.max(40),
+                    pixel_width: 0,
+                    pixel_height: 0,
+                })
+                .map_err(|error| format!("failed to resize terminal: {error}"));
+        }
+
+        return Ok(());
+    }
+
+    if action.as_deref() == Some("close") {
+        if let Some(mut session) = sessions.remove(&session_id) {
+            let _ = session.child.kill();
+        }
         return Ok(());
     }
 
