@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node build.mjs && npx --yes serve dist --listen 5173",
-    "build": "node build.mjs",
-    "preview": "npx --yes serve dist --listen 4173"
+    "dev": "npx vite",
+    "build": "npx vite build",
+    "preview": "npx vite preview"
   },
   "dependencies": {
+    "vite": "^6.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   }
