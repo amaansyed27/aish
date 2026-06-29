@@ -38,7 +38,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist-artifacts/windows | Out-Null
           Copy-Item target/release/aish.exe dist-artifacts/windows/aish-windows-x64.exe -Force
-          Get-ChildItem -Recurse -Path target,apps/desktop/src-tauri/target -Filter *.msi |
+          Get-ChildItem -Recurse -Path target -Filter *.msi |
             ForEach-Object { Copy-Item $_.FullName dist-artifacts/windows/ -Force }
 
       - uses: actions/upload-artifact@v4
@@ -73,7 +73,8 @@ jobs:
         run: |
           mkdir -p dist-artifacts/macos
           cp target/release/aish dist-artifacts/macos/aish-macos || true
-          find target apps/desktop/src-tauri/target \( -name "*.dmg" -o -name "*.app" \) -exec cp -R {} dist-artifacts/macos/ \;
+          find target -name "*.dmg" -exec cp {} dist-artifacts/macos/ \;
+          find target -name "*.app" -exec cp -R {} dist-artifacts/macos/ \;
 
       - uses: actions/upload-artifact@v4
         with:
@@ -122,7 +123,9 @@ jobs:
         run: |
           mkdir -p dist-artifacts/linux
           cp target/release/aish dist-artifacts/linux/aish-linux-x64 || true
-          find target apps/desktop/src-tauri/target \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) -exec cp {} dist-artifacts/linux/ \;
+          find target -name "*.deb" -exec cp {} dist-artifacts/linux/ \;
+          find target -name "*.rpm" -exec cp {} dist-artifacts/linux/ \;
+          find target -name "*.AppImage" -exec cp {} dist-artifacts/linux/ \;
 
       - uses: actions/upload-artifact@v4
         with:
