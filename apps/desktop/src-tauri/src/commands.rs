@@ -56,15 +56,20 @@ pub fn save_model_profiles(profiles: Vec<ModelProfile>) -> Result<Vec<ModelProfi
 }
 
 #[tauri::command]
-pub fn run_local_model(profile_id: String, prompt: String) -> Result<ModelRunResult, String> {
+pub async fn run_local_model(profile_id: String, prompt: String) -> Result<ModelRunResult, String> {
     let profile = model_store::find_profile(&profile_id)?;
-    run_gguf_model(ModelRunRequest { profile, prompt })
+    tauri::async_runtime::spawn_blocking(move || run_gguf_model(ModelRunRequest { profile, prompt }))
+        .await
+        .map_err(|error| format!("Model task failed: {error}"))?
 }
 
 #[tauri::command]
-pub fn create_ai_card(profile_id: String, intent: String) -> Result<ModelRunResult, String> {
+pub async fn create_ai_card(profile_id: String, intent: String) -> Result<ModelRunResult, String> {
     let profile = model_store::find_profile(&profile_id)?;
     let context = serde_json::to_value(inspect_current_project()).unwrap_or_else(|_| serde_json::json!({}));
     let prompt = build_command_card_prompt(&intent, &context);
-    run_gguf_model(ModelRunRequest { profile, prompt })
+
+    tauri::async_runtime::spawn_blocking(move || run_gguf_model(ModelRunRequest { profile, prompt }))
+        .await
+        .map_err(|error| format!("Model task failed: {error}"))?
 }
