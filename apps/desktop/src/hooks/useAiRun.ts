@@ -41,7 +41,10 @@ function cleanText(value: unknown) {
   const lines = String(value ?? '').replace(/\r\n/g, '\n').split('\n');
   while (lines.length && lines[0].trim() === '') lines.shift();
   while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
-  return lines.join('\n');
+  return lines
+    .join('\n')
+    .replace(/\n[ \t]*\n[ \t]+Directory:/g, '\nDirectory:')
+    .replace(/\n[ \t]+Directory:/g, '\nDirectory:');
 }
 
 function traceOutput(trace: any) {
