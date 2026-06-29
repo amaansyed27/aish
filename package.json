@@ -7,6 +7,8 @@
     "apps/desktop"
   ],
   "scripts": {
+    "build": "node scripts/build-site.mjs",
+    "site:build": "node scripts/build-site.mjs",
     "desktop:dev": "npm --workspace apps/desktop run tauri dev",
     "desktop:build": "npm --workspace apps/desktop run tauri build",
     "desktop:check": "npm --workspace apps/desktop run typecheck",
