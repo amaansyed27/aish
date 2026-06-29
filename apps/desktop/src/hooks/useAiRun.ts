@@ -37,42 +37,18 @@ function parseCard(result: ModelRunResult | null): CommandCard | null {
   }
 }
 
-function deterministicCommand(intent: string): CommandCard | null {
-  const text = intent.trim().toLowerCase();
-
-  if (/^(pwd|where am i|show current directory|current directory|show current folder|current folder)$/.test(text)) {
-    return { action_type: 'command', command: 'Get-Location', risk: 'low', reason: 'Prints the current working directory.' };
-  }
-
-  if (/^(dir|ls|list files|show files|list current directory|show current directory files)$/.test(text)) {
-    return { action_type: 'command', command: 'Get-ChildItem', risk: 'low', reason: 'Lists files in the current directory.' };
-  }
-
-  if (/^(git status|show git status|check git status)$/.test(text)) {
-    return { action_type: 'command', command: 'git status', risk: 'low', reason: 'Shows repository status without changing files.' };
-  }
-
-  if (/^(show npm scripts|list npm scripts|npm scripts)$/.test(text)) {
-    return { action_type: 'command', command: 'npm run', risk: 'low', reason: 'Lists npm scripts from package.json.' };
-  }
-
-  const port = text.match(/(?:port|using port)\s+(\d{2,5})/);
-  if (port) {
-    return {
-      action_type: 'command',
-      command: `Get-NetTCPConnection -LocalPort ${port[1]} -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,State,OwningProcess`,
-      risk: 'low',
-      reason: 'Reads local TCP connection information for the requested port.',
-    };
-  }
-
-  return null;
+function cleanText(value: unknown) {
+  const lines = String(value ?? '').replace(/\r\n/g, '\n').split('\n');
+  while (lines.length && lines[0].trim() === '') lines.shift();
+  while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+  return lines.join('\n');
 }
 
 function traceOutput(trace: any) {
-  const stdout = String(trace?.output ?? '').trimEnd();
-  const stderr = String(trace?.error ?? '').trimEnd();
-  return { stdout, stderr };
+  return {
+    stdout: cleanText(trace?.output),
+    stderr: cleanText(trace?.error),
+  };
 }
 
 export function useAiRun(selectedProfileId: string) {
@@ -126,12 +102,6 @@ export function useAiRun(selectedProfileId: string) {
     setEntries((current) => [...current, { id, intent: trimmed, output: '', error: '', status: 'running' }]);
 
     try {
-      const local = deterministicCommand(trimmed);
-      if (local) {
-        await runCard(id, local);
-        return;
-      }
-
       if (!selectedProfileId) {
         updateEntry(id, { status: 'error', error: 'No model profile selected. Open Settings and choose a model.' });
         return;
@@ -142,7 +112,7 @@ export function useAiRun(selectedProfileId: string) {
       const card = parseCard(next);
 
       if (!card) {
-        updateEntry(id, { status: 'error', error: String(next.output ?? next.error ?? 'Model did not return a command card.') });
+        updateEntry(id, { status: 'error', error: cleanText(next.output ?? next.error ?? 'Model did not return a command card.') });
         return;
       }
 
