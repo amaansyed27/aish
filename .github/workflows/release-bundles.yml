@@ -1,0 +1,130 @@
+name: release-bundles
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows MSI
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build provider shell
+        run: cargo build --release -p aish-provider-shell
+
+      - name: Build Windows MSI
+        run: npm --workspace apps/desktop run tauri build -- --config src-tauri/tauri.windows.conf.json
+
+      - name: Collect Windows artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist-artifacts/windows | Out-Null
+          Copy-Item target/release/aish.exe dist-artifacts/windows/aish.exe -Force
+          Get-ChildItem -Recurse -Path target,apps/desktop/src-tauri/target -Filter *.msi |
+            ForEach-Object { Copy-Item $_.FullName dist-artifacts/windows/ -Force }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aish-windows
+          path: dist-artifacts/windows/*
+
+  macos:
+    name: macOS DMG
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build provider shell
+        run: cargo build --release -p aish-provider-shell
+
+      - name: Build macOS DMG
+        run: npm --workspace apps/desktop run tauri build -- --bundles dmg
+
+      - name: Collect macOS artifacts
+        run: |
+          mkdir -p dist-artifacts/macos
+          cp target/release/aish dist-artifacts/macos/aish || true
+          find target apps/desktop/src-tauri/target \( -name "*.dmg" -o -name "*.app" \) -exec cp -R {} dist-artifacts/macos/ \;
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aish-macos
+          path: dist-artifacts/macos/*
+
+  linux:
+    name: Linux DEB RPM AppImage
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux Tauri dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            rpm
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build provider shell
+        run: cargo build --release -p aish-provider-shell
+
+      - name: Build Linux bundles
+        run: npm --workspace apps/desktop run tauri build -- --config src-tauri/tauri.linux.conf.json
+
+      - name: Collect Linux artifacts
+        run: |
+          mkdir -p dist-artifacts/linux
+          cp target/release/aish dist-artifacts/linux/aish || true
+          find target apps/desktop/src-tauri/target \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \) -exec cp {} dist-artifacts/linux/ \;
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aish-linux
+          path: dist-artifacts/linux/*
