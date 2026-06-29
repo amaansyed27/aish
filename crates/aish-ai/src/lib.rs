@@ -77,10 +77,15 @@ impl AiRuntime for NullAiRuntime {
 }
 
 pub fn build_command_card_prompt(intent: &str, context_json: &serde_json::Value) -> String {
+    let cwd = context_json
+        .get("cwd")
+        .and_then(|value| value.as_str())
+        .unwrap_or(".");
+
     format!(
-        "Return exactly one JSON object. No markdown. No explanation. No thinking text.\n\nSchema A: {{\"action_type\":\"command\",\"command\":\"...\",\"risk\":\"low|medium|high\",\"reason\":\"...\"}}\nSchema B: {{\"action_type\":\"fallback_message\",\"fallback_message\":\"...\",\"reason\":\"...\"}}\n\nRules: Prefer PowerShell commands. Low risk means read-only. Medium or high means changing files, installing, deleting, deploying, admin, registry, reset, clean, publish, or cloud actions.\n\nUser request: {}\n\nContext JSON: {}\n",
-        intent,
-        context_json
+        "You convert natural language into one PowerShell command for AiSH. Return exactly one JSON object and nothing else. No markdown. No commentary. No thinking text.\n\nSchema: {{\"action_type\":\"command\",\"command\":\"...\",\"risk\":\"low|medium|high\",\"reason\":\"short reason\"}}\nFallback: {{\"action_type\":\"fallback_message\",\"fallback_message\":\"...\",\"reason\":\"short reason\"}}\n\nRules:\n- Use PowerShell on Windows.\n- Current directory is: {}\n- For current directory location, use: Get-Location\n- For listing files, use: Get-ChildItem\n- For git status, use: git status\n- For npm scripts, use: npm run\n- For finding a file or folder on a drive, use Get-ChildItem with -Path like D:\\\\, -Recurse, -Force, -Filter, -ErrorAction SilentlyContinue, then Select-Object -ExpandProperty FullName.\n- Read-only commands, including recursive file search, are low risk.\n- Deleting, moving, editing, installing, deploying, publishing, admin, registry, cloud, git reset, git clean, and formatting disks are medium or high risk.\n- Do not use dir /s unless the user specifically asks for cmd.exe syntax.\n- Do not invent a path. If the user names a drive, search that drive.\n\nExamples:\nUser request: show current directory\n{{\"action_type\":\"command\",\"command\":\"Get-Location\",\"risk\":\"low\",\"reason\":\"Shows the current working directory.\"}}\nUser request: where is report.pdf in d drive\n{{\"action_type\":\"command\",\"command\":\"Get-ChildItem -Path D:\\\\ -Recurse -Force -Filter 'report.pdf' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName\",\"risk\":\"low\",\"reason\":\"Searches D drive and prints exact matching paths.\"}}\n\nUser request: {}\n",
+        cwd,
+        intent
     )
 }
 
@@ -166,7 +171,7 @@ fn clean_runtime_text(raw: &str) -> String {
             skipping_prompt = true;
             continue;
         }
-        if skipping_prompt && (trimmed.starts_with("Schema ") || trimmed.starts_with("Rules:") || trimmed.starts_with("User request:") || trimmed.starts_with("Context JSON:")) {
+        if skipping_prompt && (trimmed.starts_with("Schema") || trimmed.starts_with("Rules:") || trimmed.starts_with("User request:") || trimmed.starts_with("Example")) {
             continue;
         }
         if trimmed.starts_with("[") && trimmed.contains("thinking") {
