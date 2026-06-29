@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "AiSH",
   "version": "0.1.0",
-  "identifier": "dev.aish.desktop",
+  "identifier": "labs.dawnlight.aish",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -26,9 +26,20 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Dawnlight Labs",
+    "homepage": "https://dawnlightlabs.com/aish",
+    "copyright": "Copyright (c) 2026 Dawnlight Labs. All rights reserved.",
+    "license": "MIT",
     "shortDescription": "AiSH AI-native shell and desktop terminal",
-    "longDescription": "AiSH packages an AI Run provider shell plus an optional desktop terminal app.",
+    "longDescription": "AiSH is an AI-native provider shell and desktop terminal from Dawnlight Labs.",
     "category": "DeveloperTool",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
     "windows": {
       "nsis": {
         "installMode": "both"
