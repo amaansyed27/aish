@@ -13,7 +13,7 @@ function makeTab(cwd: string, index: number) {
   return { id: `tab-${Date.now()}-${index}`, title: index === 1 ? 'PowerShell' : `PowerShell ${index}`, cwd };
 }
 
-function WorkingPanel({ entries, onApprove, onCancel }) {
+function WorkingPanel({ entries, showFullReasoning, onApprove, onCancel }) {
   const latest = entries[entries.length - 1];
   if (!latest) return null;
   const rows = [
@@ -24,10 +24,16 @@ function WorkingPanel({ entries, onApprove, onCancel }) {
     latest.output ? `status: ${latest.output}` : '',
     latest.error ? `error: ${latest.error}` : '',
   ].filter(Boolean);
+  const fullRows = showFullReasoning ? [
+    '',
+    '--- full trace ---',
+    latest.runtime ? `runtime: ${latest.runtime}` : '',
+    latest.modelOutput ? `model_card: ${latest.modelOutput}` : '',
+  ].filter(Boolean) : [];
   return (
     <details className="ai-working-panel">
       <summary>Working · {latest.status}</summary>
-      <pre>{rows.join('\n')}</pre>
+      <pre>{rows.concat(fullRows).join('\n')}</pre>
       {latest.needsApproval && (
         <div className="approval-actions">
           <button type="button" onClick={() => onApprove(latest.id)}>Approve</button>
@@ -45,6 +51,8 @@ export default function App() {
   const [tabs, setTabs] = useState([firstTab]);
   const [activeTabId, setActiveTabId] = useState(firstTab.id);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [appMode, setAppMode] = useState<'ai' | 'normal'>('ai');
+  const [showFullReasoning, setShowFullReasoning] = useState(false);
   const [profiles, setProfiles] = useState(DEFAULT_MODEL_PROFILES);
   const [selectedProfileId, setSelectedProfileId] = useState(String(DEFAULT_MODEL_PROFILES[0].id));
   const [input, setInput] = useState('');
@@ -79,7 +87,7 @@ export default function App() {
       const key = event.key.toLowerCase();
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 't') { event.preventDefault(); newTab(); }
       else if ((event.ctrlKey || event.metaKey) && key === ',') { event.preventDefault(); setSettingsOpen((open) => !open); }
-      else if ((event.ctrlKey || event.metaKey) && (event.code === 'Space' || key === 'k')) { event.preventDefault(); inputRef.current?.focus(); }
+      else if ((event.ctrlKey || event.metaKey) && (event.code === 'Space' || key === 'k')) { event.preventDefault(); setAppMode('ai'); window.setTimeout(() => inputRef.current?.focus(), 20); }
       else if (event.key === 'Escape') { if (settingsOpen) setSettingsOpen(false); else if (input) setInput(''); }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -116,7 +124,7 @@ export default function App() {
 
   return (
     <main className="app-shell">
-      <AppChrome backendStatus={backend} cwd={cwd} tabs={tabs} activeTabId={activeTabId} profiles={profiles} selectedProfileId={selectedProfileId} settingsOpen={settingsOpen} onSelectProfile={setSelectedProfileId} onNewTab={newTab} onSelectTab={setActiveTabId} onCloseTab={closeTab} onToggleSettings={() => setSettingsOpen((open) => !open)} />
+      <AppChrome backendStatus={backend} cwd={cwd} tabs={tabs} activeTabId={activeTabId} profiles={profiles} selectedProfileId={selectedProfileId} settingsOpen={settingsOpen} appMode={appMode} onSelectProfile={setSelectedProfileId} onNewTab={newTab} onSelectTab={setActiveTabId} onCloseTab={closeTab} onToggleSettings={() => setSettingsOpen((open) => !open)} onToggleMode={() => setAppMode((mode) => mode === 'ai' ? 'normal' : 'ai')} />
       <section className="terminal-shell">
         <div className="terminal-stack">
           {tabs.map((tab) => (
@@ -125,10 +133,10 @@ export default function App() {
             </div>
           ))}
         </div>
-        <WorkingPanel entries={ai.entries} onApprove={ai.approveEntry} onCancel={ai.cancelEntry} />
-        <CommandComposer ref={inputRef} cwd={cwd} value={input} disabled={ai.isRunning} onChange={setInput} onSubmit={submitPrompt} />
+        {appMode === 'ai' && <WorkingPanel entries={ai.entries} showFullReasoning={showFullReasoning} onApprove={ai.approveEntry} onCancel={ai.cancelEntry} />}
+        {appMode === 'ai' && <CommandComposer ref={inputRef} cwd={cwd} value={input} disabled={ai.isRunning} onChange={setInput} onSubmit={submitPrompt} />}
       </section>
-      <SettingsDrawer open={settingsOpen} cwd={cwd} profiles={profiles} selectedProfileId={selectedProfileId} onSelectProfile={setSelectedProfileId} onClose={() => setSettingsOpen(false)} />
+      <SettingsDrawer open={settingsOpen} cwd={cwd} profiles={profiles} selectedProfileId={selectedProfileId} showFullReasoning={showFullReasoning} onSelectProfile={setSelectedProfileId} onToggleFullReasoning={setShowFullReasoning} onClose={() => setSettingsOpen(false)} />
     </main>
   );
 }
