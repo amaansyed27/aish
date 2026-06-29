@@ -4,21 +4,15 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { openPty, resizePty, sendPty } from '../../lib/api';
 
-const AISH_MARK = String.raw` █████╗ ██╗███████╗██╗  ██╗
-██╔══██╗██║██╔════╝██║  ██║
-███████║██║███████╗███████║
-██╔══██║██║╚════██║██╔══██║
-██║  ██║██║███████║██║  ██║
-╚═╝  ╚═╝╚═╝╚══════╝╚═╝  ╚═╝`;
-
 interface TerminalOutputEvent {
   session_id: string;
   data: string;
 }
 
-export function TerminalSurface({ sessionId }: { sessionId: string; modelOutput?: unknown; error?: string }) {
+export function TerminalSurface({ sessionId, isActive = true }: { sessionId: string; isActive?: boolean; modelOutput?: unknown; error?: string }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -43,6 +37,7 @@ export function TerminalSurface({ sessionId }: { sessionId: string; modelOutput?
     fit.fit();
     terminal.focus();
     termRef.current = terminal;
+    fitRef.current = fit;
 
     openPty(sessionId, terminal.cols || 120, terminal.rows || 30).catch((err) => terminal.writeln(String(err)));
 
@@ -72,13 +67,25 @@ export function TerminalSurface({ sessionId }: { sessionId: string; modelOutput?
       dataDisposable.dispose();
       terminal.dispose();
       termRef.current = null;
+      fitRef.current = null;
     };
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    window.setTimeout(() => {
+      const terminal = termRef.current;
+      const fit = fitRef.current;
+      if (!terminal || !fit) return;
+      fit.fit();
+      terminal.focus();
+      void resizePty(sessionId, terminal.cols || 120, terminal.rows || 30);
+    }, 40);
+  }, [isActive, sessionId]);
 
   return (
     <div className="xterm-shell" onContextMenu={(event) => event.preventDefault()}>
       <div className="xterm-host" ref={hostRef} onClick={() => termRef.current?.focus()} />
-      <pre className="aish-terminal-mark" aria-hidden="true">{AISH_MARK}</pre>
     </div>
   );
 }
