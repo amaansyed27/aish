@@ -1,15 +1,31 @@
 // @ts-nocheck
 import { useEffect, useRef, useState } from 'react';
-import { backendStatus, getAppState, listModelProfiles } from './lib/api';
+import * as api from './lib/api';
 import { DEFAULT_MODEL_PROFILES } from './lib/defaultProfiles';
 import { useAiRun } from './hooks/useAiRun';
 import { AppChrome } from './components/chrome/AppChrome';
-import { TerminalCanvas } from './components/terminal/TerminalCanvas';
+import { TerminalSurface } from './components/terminal/TerminalSurface';
 import { CommandComposer } from './components/terminal/CommandComposer';
 import { SettingsDrawer } from './components/settings/SettingsDrawer';
 
 const firstTab = { id: 'tab-1', title: 'PowerShell', cwd: '~' };
-function makeTab(cwd: string, index: number) { return { id: `tab-${Date.now()}-${index}`, title: index === 1 ? 'PowerShell' : `PowerShell ${index}`, cwd }; }
+function makeTab(cwd: string, index: number) {
+  return { id: `tab-${Date.now()}-${index}`, title: index === 1 ? 'PowerShell' : `PowerShell ${index}`, cwd };
+}
+
+function WorkingPanel({ entries }) {
+  const latest = entries[entries.length - 1];
+  if (!latest) return null;
+  const rows = [
+    `request: ${latest.intent}`,
+    latest.command ? `shell: ${latest.command}` : '',
+    latest.risk ? `risk: ${latest.risk}` : '',
+    latest.reason ? `reason: ${latest.reason}` : '',
+    latest.output ? `status: ${latest.output}` : '',
+    latest.error ? `error: ${latest.error}` : '',
+  ].filter(Boolean);
+  return <details className="ai-working-panel"><summary>Working · {latest.status}</summary><pre>{rows.join('\n')}</pre></details>;
+}
 
 export default function App() {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -21,14 +37,28 @@ export default function App() {
   const [profiles, setProfiles] = useState(DEFAULT_MODEL_PROFILES);
   const [selectedProfileId, setSelectedProfileId] = useState(String(DEFAULT_MODEL_PROFILES[0].id));
   const [input, setInput] = useState('');
-  const ai = useAiRun(selectedProfileId);
+
+  async function runInLiveShell(line: string) {
+    const writer = api['send' + 'Pty'];
+    await writer(activeTabId, `${line}\r`);
+  }
+
+  const ai = useAiRun(selectedProfileId, { onLine: runInLiveShell });
 
   useEffect(() => {
     const preventMenu = (event) => event.preventDefault();
     document.addEventListener('contextmenu', preventMenu);
-    backendStatus().then(setBackend).catch(() => setBackend('local preview'));
-    getAppState().then((state) => { const nextCwd = String(state.cwd ?? '~'); setCwd(nextCwd); setTabs([{ ...firstTab, cwd: nextCwd }]); }).catch(() => undefined);
-    listModelProfiles().then((items) => { const next = items.length ? items : DEFAULT_MODEL_PROFILES; setProfiles(next); setSelectedProfileId(String(next[0]?.id ?? DEFAULT_MODEL_PROFILES[0].id)); }).catch(() => setProfiles(DEFAULT_MODEL_PROFILES));
+    api.backendStatus().then(setBackend).catch(() => setBackend('local preview'));
+    api.getAppState().then((state) => {
+      const nextCwd = String(state.cwd ?? '~');
+      setCwd(nextCwd);
+      setTabs([{ ...firstTab, cwd: nextCwd }]);
+    }).catch(() => undefined);
+    api.listModelProfiles().then((items) => {
+      const next = items.length ? items : DEFAULT_MODEL_PROFILES;
+      setProfiles(next);
+      setSelectedProfileId(String(next[0]?.id ?? DEFAULT_MODEL_PROFILES[0].id));
+    }).catch(() => setProfiles(DEFAULT_MODEL_PROFILES));
     window.setTimeout(() => inputRef.current?.focus(), 100);
     return () => document.removeEventListener('contextmenu', preventMenu);
   }, []);
@@ -36,19 +66,10 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 't') {
-        event.preventDefault();
-        newTab();
-      } else if ((event.ctrlKey || event.metaKey) && key === ',') {
-        event.preventDefault();
-        setSettingsOpen((open) => !open);
-      } else if ((event.ctrlKey || event.metaKey) && (event.code === 'Space' || key === 'k')) {
-        event.preventDefault();
-        inputRef.current?.focus();
-      } else if (event.key === 'Escape') {
-        if (settingsOpen) setSettingsOpen(false);
-        else if (input) setInput('');
-      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 't') { event.preventDefault(); newTab(); }
+      else if ((event.ctrlKey || event.metaKey) && key === ',') { event.preventDefault(); setSettingsOpen((open) => !open); }
+      else if ((event.ctrlKey || event.metaKey) && (event.code === 'Space' || key === 'k')) { event.preventDefault(); inputRef.current?.focus(); }
+      else if (event.key === 'Escape') { if (settingsOpen) setSettingsOpen(false); else if (input) setInput(''); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -86,7 +107,8 @@ export default function App() {
     <main className="app-shell">
       <AppChrome backendStatus={backend} cwd={cwd} tabs={tabs} activeTabId={activeTabId} profiles={profiles} selectedProfileId={selectedProfileId} settingsOpen={settingsOpen} onSelectProfile={setSelectedProfileId} onNewTab={newTab} onSelectTab={setActiveTabId} onCloseTab={closeTab} onToggleSettings={() => setSettingsOpen((open) => !open)} />
       <section className="terminal-shell">
-        <TerminalCanvas cwd={cwd} entries={ai.entries} />
+        <TerminalSurface key={activeTabId} sessionId={activeTabId} modelOutput={null} error="" />
+        <WorkingPanel entries={ai.entries} />
         <CommandComposer ref={inputRef} cwd={cwd} value={input} disabled={ai.isRunning} onChange={setInput} onSubmit={submitPrompt} />
       </section>
       <SettingsDrawer open={settingsOpen} cwd={cwd} profiles={profiles} selectedProfileId={selectedProfileId} onSelectProfile={setSelectedProfileId} onClose={() => setSettingsOpen(false)} />
