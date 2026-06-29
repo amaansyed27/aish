@@ -8,6 +8,8 @@ interface WorkingTraceProps {
 export function WorkingTrace({ result, selectedProfileId }: WorkingTraceProps) {
   if (!result) return null;
 
+  const traceError = String(result.error ?? '').trim();
+
   return (
     <details className="working-trace">
       <summary>Working</summary>
@@ -19,7 +21,7 @@ export function WorkingTrace({ result, selectedProfileId }: WorkingTraceProps) {
         <span>Runtime</span>
         <code>{String(result.command_line ?? '')}</code>
       </div>
-      {result.error && <pre>{String(result.error).trim()}</pre>}
+      {traceError.length > 0 ? <pre>{traceError}</pre> : null}
     </details>
   );
 }
