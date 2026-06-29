@@ -22,9 +22,9 @@ export function AppChrome({ backendStatus, tabs, activeTabId, profiles, selected
     <header className="app-chrome" data-tauri-drag-region>
       <div className="chrome-left" data-tauri-drag-region>
         <div className="app-badge" title="AiSH by Dawnlight Labs">Ai</div>
-        <div className="brand-stack" data-tauri-drag-region>
-          <strong>AiSH</strong>
-          <small>Dawnlight Labs</small>
+        <div data-tauri-drag-region style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 92 }}>
+          <strong style={{ fontSize: 13, lineHeight: 1, color: '#f4ead8' }}>AiSH</strong>
+          <small style={{ fontSize: 10, lineHeight: 1, color: '#8b8171', whiteSpace: 'nowrap' }}>Dawnlight Labs</small>
         </div>
         <div className="tab-row">
           {tabs.map((tab) => (
