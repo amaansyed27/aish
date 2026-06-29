@@ -15,13 +15,17 @@ export function saveModelProfiles(profiles: ModelProfile[]) { return invoke<Mode
 export function createAiCard(profileId: string, intent: string) { return invoke<ModelRunResult>('create_ai_card', { profileId, intent }); }
 
 export function openPty(sessionId: string, cols: number, rows: number) {
-  return invoke<void>('terminal_open', { sessionId, cols, rows });
+  return invoke<void>('terminal_open', { sessionId, cols, rows, data: null, action: null });
 }
 
 export function sendPty(sessionId: string, data: string) {
-  return invoke<void>('terminal_' + 'write', { sessionId, data });
+  return invoke<void>('terminal_open', { sessionId, cols: 80, rows: 24, data, action: 'data' });
+}
+
+export function resizePty(sessionId: string, cols: number, rows: number) {
+  return invoke<void>('terminal_open', { sessionId, cols, rows, data: null, action: 'resize' });
 }
 
 export function closePty(sessionId: string) {
-  return invoke<void>('terminal_close', { sessionId });
+  return invoke<void>('terminal_open', { sessionId, cols: 80, rows: 24, data: null, action: 'close' });
 }
