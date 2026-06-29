@@ -13,7 +13,7 @@ function makeTab(cwd: string, index: number) {
   return { id: `tab-${Date.now()}-${index}`, title: index === 1 ? 'PowerShell' : `PowerShell ${index}`, cwd };
 }
 
-function WorkingPanel({ entries }) {
+function WorkingPanel({ entries, onApprove, onCancel }) {
   const latest = entries[entries.length - 1];
   if (!latest) return null;
   const rows = [
@@ -24,7 +24,18 @@ function WorkingPanel({ entries }) {
     latest.output ? `status: ${latest.output}` : '',
     latest.error ? `error: ${latest.error}` : '',
   ].filter(Boolean);
-  return <details className="ai-working-panel"><summary>Working · {latest.status}</summary><pre>{rows.join('\n')}</pre></details>;
+  return (
+    <details className="ai-working-panel">
+      <summary>Working · {latest.status}</summary>
+      <pre>{rows.join('\n')}</pre>
+      {latest.needsApproval && (
+        <div className="approval-actions">
+          <button type="button" onClick={() => onApprove(latest.id)}>Approve</button>
+          <button type="button" onClick={() => onCancel(latest.id)}>Cancel</button>
+        </div>
+      )}
+    </details>
+  );
 }
 
 export default function App() {
@@ -107,8 +118,14 @@ export default function App() {
     <main className="app-shell">
       <AppChrome backendStatus={backend} cwd={cwd} tabs={tabs} activeTabId={activeTabId} profiles={profiles} selectedProfileId={selectedProfileId} settingsOpen={settingsOpen} onSelectProfile={setSelectedProfileId} onNewTab={newTab} onSelectTab={setActiveTabId} onCloseTab={closeTab} onToggleSettings={() => setSettingsOpen((open) => !open)} />
       <section className="terminal-shell">
-        <TerminalSurface key={activeTabId} sessionId={activeTabId} modelOutput={null} error="" />
-        <WorkingPanel entries={ai.entries} />
+        <div className="terminal-stack">
+          {tabs.map((tab) => (
+            <div key={tab.id} className={tab.id === activeTabId ? 'terminal-pane active-pane' : 'terminal-pane'}>
+              <TerminalSurface sessionId={tab.id} isActive={tab.id === activeTabId} />
+            </div>
+          ))}
+        </div>
+        <WorkingPanel entries={ai.entries} onApprove={ai.approveEntry} onCancel={ai.cancelEntry} />
         <CommandComposer ref={inputRef} cwd={cwd} value={input} disabled={ai.isRunning} onChange={setInput} onSubmit={submitPrompt} />
       </section>
       <SettingsDrawer open={settingsOpen} cwd={cwd} profiles={profiles} selectedProfileId={selectedProfileId} onSelectProfile={setSelectedProfileId} onClose={() => setSettingsOpen(false)} />
