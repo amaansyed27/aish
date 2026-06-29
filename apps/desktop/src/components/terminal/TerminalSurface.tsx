@@ -4,6 +4,13 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { openPty, resizePty, sendPty } from '../../lib/api';
 
+const AISH_MARK = String.raw` █████╗ ██╗███████╗██╗  ██╗
+██╔══██╗██║██╔════╝██║  ██║
+███████║██║███████╗███████║
+██╔══██║██║╚════██║██╔══██║
+██║  ██║██║███████║██║  ██║
+╚═╝  ╚═╝╚═╝╚══════╝╚═╝  ╚═╝`;
+
 interface TerminalOutputEvent {
   session_id: string;
   data: string;
@@ -68,5 +75,10 @@ export function TerminalSurface({ sessionId }: { sessionId: string; modelOutput?
     };
   }, [sessionId]);
 
-  return <div className="xterm-host" ref={hostRef} onClick={() => termRef.current?.focus()} onContextMenu={(event) => event.preventDefault()} />;
+  return (
+    <div className="xterm-shell" onContextMenu={(event) => event.preventDefault()}>
+      <div className="xterm-host" ref={hostRef} onClick={() => termRef.current?.focus()} />
+      <pre className="aish-terminal-mark" aria-hidden="true">{AISH_MARK}</pre>
+    </div>
+  );
 }
