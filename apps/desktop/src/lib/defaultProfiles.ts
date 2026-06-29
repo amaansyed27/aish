@@ -4,55 +4,25 @@ const home = 'C:/Users/Amaan';
 const modelRoot = `${home}/Downloads/aish-model/models`;
 const llamaCli = `${home}/Downloads/llama.cpp/build/bin/Release/llama-cli.exe`;
 
+function profile(id: string, label: string, family: string, file: string, contextTokens = 32768): ModelProfile {
+  return {
+    id,
+    label,
+    family,
+    model_path: `${modelRoot}/${file}`,
+    llama_cli_path: llamaCli,
+    context_tokens: contextTokens,
+    max_tokens: 512,
+    temperature: 0.1,
+  };
+}
+
 export const DEFAULT_MODEL_PROFILES: ModelProfile[] = [
-  {
-    id: 'ken-v01-f16',
-    label: 'Ken v0.1 F16',
-    family: 'kenwin',
-    model_path: `${modelRoot}/kenwin-v0.1-f16.gguf`,
-    llama_cli_path: llamaCli,
-    context_tokens: 4096,
-    max_tokens: 384,
-    temperature: 0.1,
-  },
-  {
-    id: 'ken-v01-q4',
-    label: 'Ken v0.1 Q4_K_M',
-    family: 'kenwin',
-    model_path: `${modelRoot}/kenwin-v0.1-q4_k_m.gguf`,
-    llama_cli_path: llamaCli,
-    context_tokens: 4096,
-    max_tokens: 384,
-    temperature: 0.1,
-  },
-  {
-    id: 'ken-v02-f16',
-    label: 'Ken v0.2 targeted F16',
-    family: 'kenwin',
-    model_path: `${modelRoot}/kenwin-v0.2-targeted-f16.gguf`,
-    llama_cli_path: llamaCli,
-    context_tokens: 4096,
-    max_tokens: 384,
-    temperature: 0.1,
-  },
-  {
-    id: 'ken-v02-q4',
-    label: 'Ken v0.2 targeted Q4_K_M',
-    family: 'kenwin',
-    model_path: `${modelRoot}/kenwin-v0.2-targeted-q4_k_m.gguf`,
-    llama_cli_path: llamaCli,
-    context_tokens: 4096,
-    max_tokens: 384,
-    temperature: 0.1,
-  },
-  {
-    id: 'sairaj-qwen25-coder-q4',
-    label: 'Sairaj Qwen2.5 Coder 1.5B Q4_K_M',
-    family: 'baseline',
-    model_path: `${modelRoot}/qwen2.5-coder-1.5b-instruct.Q4_K_M.gguf`,
-    llama_cli_path: llamaCli,
-    context_tokens: 4096,
-    max_tokens: 384,
-    temperature: 0.1,
-  },
+  profile('qwen25-coder-05b-q4', 'Qwen2.5 Coder 0.5B Instruct Q4_K_M', 'qwen2.5-coder', 'qwen2.5-coder-0.5b-instruct-q4_k_m.gguf'),
+  profile('qwen25-coder-15b-q4', 'Qwen2.5 Coder 1.5B Instruct Q4_K_M', 'qwen2.5-coder', 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf'),
+  profile('qwen25-coder-3b-q4', 'Qwen2.5 Coder 3B Instruct Q4_K_M', 'qwen2.5-coder', 'qwen2.5-coder-3b-instruct-q4_k_m.gguf'),
+  profile('qwen3-06b-q4', 'Qwen3 0.6B Q4_K_M', 'qwen3', 'qwen3-0.6b-q4_k_m.gguf'),
+  profile('qwen3-17b-q4', 'Qwen3 1.7B Q4_K_M', 'qwen3', 'qwen3-1.7b-q4_k_m.gguf'),
+  profile('qwen35-08b-q4', 'Qwen3.5 0.8B Q4_K_M', 'qwen3.5', 'qwen3.5-0.8b-q4_k_m.gguf'),
+  profile('qwen35-2b-q4', 'Qwen3.5 2B Q4_K_M', 'qwen3.5', 'qwen3.5-2b-q4_k_m.gguf'),
 ];
