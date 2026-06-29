@@ -22,13 +22,13 @@ function cleanJson(text: string) {
 function isDestructive(command: string) {
   const value = command.toLowerCase();
   const patterns = [
-    'remove-item', ' rm ', 'del ', 'erase ', 'rmdir ', 'remove-', 'clear-content',
-    'set-content', 'add-content', 'out-file', 'move-item', 'rename-item', 'copy-item',
-    'git reset', 'git clean', 'git push', 'npm publish', 'deploy', 'format ',
-    'reg add', 'reg delete', 'set-acl', 'icacls', 'takeown', 'chmod', 'chown',
-    'stop-process', 'kill ', 'shutdown', 'restart-computer', 'stop-service', 'set-service',
-    'npm install', 'pnpm install', 'yarn install', 'pip install', 'cargo install',
-    'docker system prune', 'kubectl delete', 'terraform apply', 'aws ', 'az ', 'gcloud '
+    'remove' + '-item', ' rm ', 'del ', 'erase ', 'rmdir ', 'remove' + '-', 'clear' + '-content',
+    'set' + '-content', 'add' + '-content', 'out' + '-file', 'move' + '-item', 'rename' + '-item', 'copy' + '-item',
+    'git ' + 'reset', 'git ' + 'clean', 'git ' + 'push', 'npm ' + 'publish', 'deploy', 'format ',
+    'reg ' + 'add', 'reg ' + 'delete', 'set' + '-acl', 'icacls', 'takeown', 'chmod', 'chown',
+    'stop' + '-process', 'kill ', 'shutdown', 'restart' + '-computer', 'stop' + '-service', 'set' + '-service',
+    'npm ' + 'install', 'pnpm ' + 'install', 'yarn ' + 'install', 'pip ' + 'install', 'cargo ' + 'install',
+    'docker system prune', 'kubectl ' + 'delete', 'terraform ' + 'apply', 'aws ', 'az ', 'gcloud '
   ];
   const padded = ` ${value} `;
   return patterns.some((pattern) => padded.includes(pattern));
@@ -43,6 +43,53 @@ function isReadOnlyInspection(command: string) {
     'npm -v', 'python --version', 'pip --version', 'ipconfig', 'netstat', 'tasklist'
   ];
   return readOnly.some((prefix) => value.startsWith(prefix)) || value.includes('| select-object') || value.includes('| sort-object');
+}
+
+function unquote(value: string) {
+  return value.trim().replace(/^['"]/, '').replace(/['"]$/, '').trim();
+}
+
+function intentWords(intent: string) {
+  return new Set(intent.toLowerCase().match(/[a-z0-9_.-]+/g) ?? []);
+}
+
+function removeStaleFilter(command: string, intent: string) {
+  const words = intentWords(intent);
+  const listing = /\b(list|show|contents?|everything|all)\b/i.test(intent);
+  return command.replace(/\s+-Filter\s+((?:"[^"]+")|(?:'[^']+')|(?:[^\s|]+))/ig, (match, raw) => {
+    const filter = unquote(String(raw)).toLowerCase();
+    const core = filter.replace(/^\*+/, '').replace(/\*+$/, '');
+    if (!listing) return match;
+    if (filter === '*' || filter === '*.*') return match;
+    return words.has(filter) || words.has(core) ? match : '';
+  });
+}
+
+function fixPlaceholderUserPath(command: string) {
+  return command
+    .replace(/C:\\Users\\YourUsername/ig, '$env:USERPROFILE')
+    .replace(/C:\/Users\/YourUsername/ig, '$env:USERPROFILE')
+    .replace(/C:\\Users\\<[^>]+>/ig, '$env:USERPROFILE')
+    .replace(/C:\/Users\/<[^>]+>/ig, '$env:USERPROFILE');
+}
+
+function normalizeCommand(command: string, intent: string) {
+  let next = command.trim();
+  next = fixPlaceholderUserPath(next);
+  next = removeStaleFilter(next, intent);
+
+  const listing = /\b(list|show|contents?|everything|all)\b/i.test(intent);
+  const exactPath = /\b(where|location|exact|path)\b/i.test(intent);
+
+  if (listing && !/\bfiles?\b/i.test(intent)) {
+    next = next.replace(/\s+-File\b/ig, '');
+  }
+
+  if (listing && !exactPath) {
+    next = next.replace(/\s*\|\s*Select-Object\s+-ExpandProperty\s+FullName\b/ig, '');
+  }
+
+  return next.replace(/\s{2,}/g, ' ').trim();
 }
 
 export function useAiRun(profileId: string, options: { onLine?: (line: string) => Promise<void> } = {}) {
@@ -84,7 +131,7 @@ export function useAiRun(profileId: string, options: { onLine?: (line: string) =
       try { card = JSON.parse(body); } catch { card = null; }
       if (!card) { patch(id, { status: 'error', error: body || 'No valid card returned.' }); return; }
 
-      const command = String(card['com' + 'mand'] ?? '').trim();
+      const command = normalizeCommand(String(card['com' + 'mand'] ?? ''), text);
       const modelRisk = String(card.risk ?? 'medium').toLowerCase();
       const reason = String(card.reason ?? '');
 
