@@ -78,7 +78,7 @@ export function useAiRun(selectedProfileId: string) {
         command,
         risk: card.risk,
         reason: card.reason,
-        output: `Proposed command not run automatically:\n${command}`,
+        output: 'AiSH prepared a non-trivial action and held it for review. Open Working to inspect details.',
       });
       return;
     }
