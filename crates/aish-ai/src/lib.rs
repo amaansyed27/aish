@@ -76,27 +76,51 @@ impl AiRuntime for NullAiRuntime {
     }
 }
 
+fn target_os() -> String {
+    std::env::var("AISH_TARGET_OS").unwrap_or_else(|_| std::env::consts::OS.to_string())
+}
+
+fn target_shell() -> String {
+    std::env::var("AISH_TARGET_SHELL")
+        .or_else(|_| std::env::var("SHELL"))
+        .or_else(|_| std::env::var("COMSPEC"))
+        .unwrap_or_else(|_| {
+            if std::env::consts::OS == "windows" {
+                "powershell".to_string()
+            } else {
+                "sh".to_string()
+            }
+        })
+}
+
+fn shell_family(os: &str, shell: &str) -> &'static str {
+    let value = shell.to_lowercase();
+    if os == "windows" || value.contains("powershell") || value.contains("pwsh") {
+        "powershell"
+    } else if value.contains("fish") {
+        "fish"
+    } else {
+        "posix"
+    }
+}
+
 pub fn build_command_card_prompt(intent: &str, _context_json: &serde_json::Value) -> String {
-    let instructions = r#"You are Ken, the AiSH command planner.
-Return exactly one JSON object and nothing else.
-Use keys: action_type, command, risk, reason.
-The command must be a single runnable PowerShell command.
+    let os = target_os();
+    let shell = target_shell();
+    let family = shell_family(&os, &shell);
+    let command_contract = match family {
+        "powershell" => "Return one PowerShell command. Use PowerShell cmdlets and syntax. Use $env:USERPROFILE for user-profile folders. Build nested user folders with Join-Path. Do not output cmd.exe syntax unless the user asks for cmd.exe.",
+        "fish" => "Return one fish-compatible shell command. Use POSIX-style filesystem paths where possible, but avoid bash-only syntax when fish syntax differs. Use $HOME for user-profile folders.",
+        _ => "Return one POSIX shell command suitable for bash/zsh. Use $HOME for user-profile folders. Use find/ls/grep/sed/awk/git/npm style commands where appropriate.",
+    };
+    let path_rules = match family {
+        "powershell" => "If no path is named, omit -Path and rely on the live shell current location. When listing a named folder, put the folder in -Path and do not also use that folder name as -Filter. Use -Filter only when searching for an unknown item by name. Use -File only when files specifically are requested. Use Select-Object -ExpandProperty FullName only when exact paths or locations are requested.",
+        _ => "If no path is named, use . or omit the path and rely on the live shell current location. When listing a named folder, pass the folder as the command target. Use find -name only when searching for an unknown item by name. Use file-only predicates only when files specifically are requested. Print full paths only when exact paths or locations are requested.",
+    };
 
-The command runs in the user's live PowerShell session.
-Do not invent the current directory.
-If the request does not name a path, omit -Path and rely on the live shell location.
-Never output placeholder usernames, tutorial paths, or sample targets that are not in the user request.
-If a user-profile folder is named, build it from $env:USERPROFILE.
-When listing a folder, put the folder in -Path and do not also use that folder name as -Filter.
-Use -Filter only when searching for an unknown item by name.
-Use -File only when the user specifically asks for files.
-Use Select-Object -ExpandProperty FullName only when the user asks for exact paths or locations.
-Read-only inspection, recursive listing, sorting, and path search are low risk.
-State-changing or externally impactful actions are medium or high risk.
-Keep the reason short.
-"#;
-
-    format!("{instructions}\nUser request:\n{intent}\n")
+    format!(
+        "You are Ken, the AiSH command planner.\nReturn exactly one JSON object and nothing else. No markdown. No prose. No thinking text.\nUse keys: action_type, command, risk, reason. For fallback use action_type, fallback_message, reason.\nThe command must be a single runnable command for this environment.\n\nEnvironment:\n- OS: {os}\n- Shell: {shell}\n- Shell family: {family}\n\nCommand contract:\n- {command_contract}\n- The command runs in the user's existing live shell session.\n- Do not invent the current directory.\n- Never output placeholder usernames, tutorial paths, angle-bracket placeholders, or sample targets not present in the user request.\n- If a user-profile folder is named, build it from the shell's home environment variable.\n\nPath and output rules:\n- {path_rules}\n- Do not copy filenames, folder names, or examples that are not in the user request.\n\nRisk rules:\n- Read-only inspection, recursive listing, sorting, filtering, text search, status checks, version checks, and path searches are low risk even if long-running.\n- Commands that delete, overwrite, move, rename, install, uninstall, publish, deploy, push, mutate git history, change permissions, edit registry, stop services/processes, or alter cloud/system state are medium or high risk.\n- For medium/high risk, still return the best command card. The app or provider shell will request approval.\n\nQuality rules:\n- Keep the command complete and directly runnable.\n- Keep the reason short and factual.\n\nUser request:\n{intent}\n"
+    )
 }
 
 pub fn run_gguf_model(request: ModelRunRequest) -> Result<ModelRunResult, String> {
