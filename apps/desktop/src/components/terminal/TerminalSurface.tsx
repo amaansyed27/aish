@@ -41,8 +41,7 @@ export function TerminalSurface({ sessionId, isActive = true }: { sessionId: str
   useEffect(() => {
     if (!hostRef.current) return;
 
-    let terminal: Terminal;
-    terminal = new Terminal({
+    const terminal = new Terminal({
       cursorBlink: true,
       convertEol: true,
       fontFamily: 'Cascadia Mono, CaskaydiaCove Nerd Font, Consolas, monospace',
@@ -50,25 +49,6 @@ export function TerminalSurface({ sessionId, isActive = true }: { sessionId: str
       lineHeight: 1.15,
       scrollback: 10000,
       rightClickSelectsWord: true,
-      customKeyEventHandler: (event) => {
-        if (event.type !== 'keydown') return true;
-        const key = event.key.toLowerCase();
-        const mod = event.ctrlKey || event.metaKey;
-
-        if (mod && event.shiftKey && key === 'c') {
-          void writeClipboardText(terminal.getSelection());
-          return false;
-        }
-
-        if (mod && (key === 'v' || (event.shiftKey && key === 'v'))) {
-          void readClipboardText().then((text) => {
-            if (text) void sendPty(sessionId, text.replace(/\r?\n/g, '\r'));
-          });
-          return false;
-        }
-
-        return true;
-      },
       theme: {
         background: '#0c0c0c',
         foreground: '#d4d4d4',
@@ -76,6 +56,27 @@ export function TerminalSurface({ sessionId, isActive = true }: { sessionId: str
         selectionBackground: '#555555',
       },
     });
+
+    terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      if (event.type !== 'keydown') return true;
+      const key = event.key.toLowerCase();
+      const mod = event.ctrlKey || event.metaKey;
+
+      if (mod && event.shiftKey && key === 'c') {
+        void writeClipboardText(terminal.getSelection());
+        return false;
+      }
+
+      if (mod && key === 'v') {
+        void readClipboardText().then((text) => {
+          if (text) void sendPty(sessionId, text.replace(/\r?\n/g, '\r'));
+        });
+        return false;
+      }
+
+      return true;
+    });
+
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(hostRef.current);
