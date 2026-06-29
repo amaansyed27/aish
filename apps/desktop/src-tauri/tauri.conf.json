@@ -24,7 +24,15 @@
     }
   },
   "bundle": {
-    "active": false,
-    "targets": "all"
+    "active": true,
+    "targets": "all",
+    "shortDescription": "AiSH AI-native shell and desktop terminal",
+    "longDescription": "AiSH packages an AI Run provider shell plus an optional desktop terminal app.",
+    "category": "DeveloperTool",
+    "windows": {
+      "nsis": {
+        "installMode": "both"
+      }
+    }
   }
 }
