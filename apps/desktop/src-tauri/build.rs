@@ -24,6 +24,8 @@ const APP_ICON_ICNS: &[u8] = &[
 
 fn main() {
     ensure_icons();
+    let installer_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set")).join("installer");
+    fs::create_dir_all(installer_dir).expect("failed to create installer directory");
     tauri_build::build();
 }
 
